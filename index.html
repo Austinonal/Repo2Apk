@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>เปลี่ยน repo เป็น APK</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Mitr:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>เปลี่ยน repo เป็น APK</h1>
+    <p class="lead">วางลิงก์ repo เว็บของคุณ ระบบจะบอกก่อนว่าจะตัดอะไร เพิ่มอะไร และแต่ละอย่างส่งผลกับแอปยังไง เมื่อคุณกดยืนยันแล้วจึงสร้าง APK</p>
+  </header>
+
+  <form id="form">
+    <label for="url">ลิงก์ GitHub repo</label>
+    <div class="field">
+      <input id="url" autocomplete="off" inputmode="url" spellcheck="false" placeholder="github.com/ชื่อคุณ/โปรเจกต์">
+      <button id="plan-btn" class="btn primary" type="submit">ดูแผนก่อนแปลง</button>
+    </div>
+  </form>
+
+  <ol id="rail" class="rail" aria-label="ขั้นตอน"><li>ดูแผน</li><li>ยืนยัน</li><li>สร้าง APK</li></ol>
+  <p id="status" role="status" aria-live="polite"></p>
+  <div id="bar" class="bar" hidden></div>
+
+  <section id="sample">
+    <h2>ตัวอย่างแผนที่คุณจะเห็น</h2>
+    <div id="sample-body" class="report"></div>
+  </section>
+
+  <section id="plan" hidden>
+    <h2>แผนการแปลง</h2>
+    <div id="plan-body" class="report"></div>
+    <div class="actions">
+      <button id="confirm" class="btn primary" type="button">ยืนยัน สร้าง APK</button>
+      <button id="cancel" class="btn" type="button">ยกเลิก</button>
+    </div>
+  </section>
+
+  <section id="result" hidden></section>
+
+  <details id="setup">
+    <summary>ตั้งค่า GitHub token (ทำครั้งเดียว)</summary>
+    <p>ดูแผนได้เลยโดยไม่ต้องตั้งค่า แต่ตอนกดสร้าง APK ต้องมี token ที่สั่ง build ได้</p>
+    <input id="conv" autocomplete="off" spellcheck="false" placeholder="repo ของเว็บนี้ เช่น ชื่อคุณ/repo2apk" aria-label="repo ของเว็บนี้">
+    <input id="tok" type="password" autocomplete="off" placeholder="token (fine-grained: Actions + Contents = write)" aria-label="GitHub token">
+    <p>token เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น ให้สิทธิ์เฉพาะ repo นี้ตัวเดียว</p>
+  </details>
+
+  <footer>ใช้ได้กับ repo public ที่เป็นเว็บ (HTML/JS/PWA, React/Vite) ได้ไฟล์ debug APK ที่ติดตั้งในเครื่องได้เลย แต่ยังอัปขึ้น Play Store ไม่ได้</footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
