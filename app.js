@@ -61,19 +61,27 @@ $('sample-body').replaceChildren(md(report([
   dirItem('docs'), WRAP,
 ])));
 
+const targets = () => [...document.querySelectorAll('.targets input:checked')].map(c => c.value);
 const parse = s => s.trim().match(/^(?:https?:\/\/)?(?:github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^\s?#]+))?\/?$/);
 
 $('form').onsubmit = async e => {
   e.preventDefault();
   const u = parse($('url').value);
   if (!u) return say('ลิงก์ไม่ถูกต้อง ลองแบบ github.com/ชื่อคุณ/โปรเจกต์');
+  if (!targets().length) return say('เลือกอย่างน้อยหนึ่งปลายทาง');
   reset(); setStep(0); busy(true); say('กำลังอ่าน repo...');
   try {
-    const p = await plan(u[1], u[2], u[3]);
-    pending = { repo: `${u[1]}/${u[2]}`, branch: u[3] || '' };
+    const p = await plan(u[1], u[2], u[3], targets());
+    pending = { repo: `${u[1]}/${u[2]}`, branch: u[3] || '', targets: targets().join(',') };
     const head = document.createElement('p');
     inline(head, `อ่าน \`${pending.repo}\` สาขา \`${p.branch}\` แล้ว มี ${p.count} ไฟล์ นี่คือสิ่งที่จะเกิดขึ้น`);
     $('plan-body').replaceChildren(head, md(report(p.items)));
+    const cuts = p.items.filter(i => i.kind === 'cut');
+    $('plan-body').querySelectorAll('ul.cut > li').forEach((li, i) => {
+      const l = document.createElement('label'), c = document.createElement('input');
+      l.className = 'keep'; c.type = 'checkbox'; c.dataset.id = cuts[i].id;
+      l.append(c, ' เก็บไว้ ไม่ตัด'); li.append(l);
+    });
     $("sample").hidden = true;
     $('plan').hidden = false; setStep(1); say('');
   } catch (err) {
@@ -98,12 +106,13 @@ $('confirm').onclick = async () => {
     if (!r.ok) throw new Error('เข้า repo ของเว็บนี้ไม่ได้ (เช็คชื่อ repo / token)');
     const ref = (await r.json()).default_branch;
     const d = await gh(`/repos/${conv}/actions/workflows/build.yml/dispatches`, { method: 'POST',
-      body: JSON.stringify({ ref, inputs: { repo: pending.repo, branch: pending.branch, job } }) });
+      body: JSON.stringify({ ref, inputs: { repo: pending.repo, branch: pending.branch, job, targets: pending.targets, name: $('appname').value.trim(),
+        skip: [...document.querySelectorAll('.keep input:checked')].map(c => c.dataset.id).join(',') } }) });
     if (!d.ok) throw new Error('สั่งงานไม่สำเร็จ (' + d.status + ') เช็คสิทธิ์ token');
     const t0 = Date.now();
     for (;;) {
       await new Promise(f => setTimeout(f, globalThis.POLL ?? 8000));
-      say(`กำลังสร้าง APK... ${Math.round((Date.now() - t0) / 1000)} วินาที (ปกติ 3-6 นาที)`);
+      say(`กำลังสร้างไฟล์... ${Math.round((Date.now() - t0) / 1000)} วินาที (ปกติ 3-6 นาที)`);
       const x = await gh(`/repos/${conv}/releases/tags/apk-${job}`);
       if (x.ok) return finish(await x.json());
       if (Date.now() - t0 > 30 * 60e3) throw new Error('นานเกินไป ไปดูแท็บ Actions ใน repo');
@@ -113,15 +122,21 @@ $('confirm').onclick = async () => {
 };
 
 function finish(rel) {
-  const a = rel.assets[0], box = $('result');
+  const a = rel.assets.find(x => !x.name.startsWith('facts')), box = $('result');
   $('plan').hidden = true; box.hidden = false;
   box.replaceChildren();
   setStep(a ? 3 : 2); say(a ? 'เสร็จแล้ว' : 'สร้างไม่สำเร็จ');
-  const h = document.createElement('h2'); h.textContent = a ? 'APK พร้อมแล้ว' : 'สร้างไม่สำเร็จ'; box.append(h);
+  const h = document.createElement('h2'); h.textContent = a ? 'ไฟล์พร้อมแล้ว' : 'สร้างไม่สำเร็จ'; box.append(h);
   if (a) {
-    const link = document.createElement('a');
-    link.className = 'btn primary'; link.href = a.browser_download_url; link.textContent = 'ดาวน์โหลด APK';
-    box.append(link);
+    const row = document.createElement('div'); row.className = 'actions';
+    const names = { apk: 'Android (.apk)', exe: 'Windows (.exe)', dmg: 'macOS (.dmg)', zip: 'iOS (โปรเจกต์ Xcode)' };
+    for (const x of rel.assets) {
+      const link = document.createElement('a');
+      link.className = 'btn primary'; link.href = x.browser_download_url;
+      link.textContent = 'ดาวน์โหลด ' + (names[x.name.split('.').pop()] || x.name);
+      row.append(link);
+    }
+    box.append(row);
     const n = document.createElement('p'); n.className = 'note';
     n.textContent = 'รายงานด้านล่างคือสิ่งที่เกิดขึ้นจริง ถ้าไม่ตรงกับแผน บอกได้เลย';
     box.append(n);

@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<title>เปลี่ยน repo เป็น APK</title>
+<title>เปลี่ยน repo เป็นแอป</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Mitr:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;600;800&family=Noto+Sans+Thai:wght@400;600&family=Prompt:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="wrap">
   <header>
-    <h1>เปลี่ยน repo เป็น APK</h1>
-    <p class="lead">วางลิงก์ repo เว็บของคุณ ระบบจะบอกก่อนว่าจะตัดอะไร เพิ่มอะไร และแต่ละอย่างส่งผลกับแอปยังไง เมื่อคุณกดยืนยันแล้วจึงสร้าง APK</p>
+    <h1>เปลี่ยน repo เป็นแอป</h1>
+    <p class="lead">วางลิงก์ repo เว็บของคุณ ระบบจะบอกก่อนว่าจะตัดอะไร เพิ่มอะไร และแต่ละอย่างส่งผลกับแอปยังไง เมื่อคุณกดยืนยันแล้วจึงสร้างไฟล์ให้</p>
   </header>
 
   <form id="form">
@@ -23,9 +23,18 @@
       <input id="url" autocomplete="off" inputmode="url" spellcheck="false" placeholder="github.com/ชื่อคุณ/โปรเจกต์">
       <button id="plan-btn" class="btn primary" type="submit">ดูแผนก่อนแปลง</button>
     </div>
+    <fieldset class="targets">
+      <legend>แปลงเป็น</legend>
+      <label><input type="checkbox" name="t" value="android" checked><b>Android</b><span>ไฟล์ .apk ติดตั้งได้เลย</span></label>
+      <label><input type="checkbox" name="t" value="windows"><b>Windows</b><span>ตัวติดตั้ง .exe</span></label>
+      <label><input type="checkbox" name="t" value="mac"><b>macOS</b><span>ไฟล์ .dmg</span></label>
+      <label><input type="checkbox" name="t" value="ios"><b>iOS</b><span>โปรเจกต์ Xcode ต้องใช้ Mac</span></label>
+    </fieldset>
+    <label for="appname" class="sub">ชื่อแอป (เว้นว่าง = ใช้ชื่อจากหน้าเว็บ)</label>
+    <input id="appname" class="wide" autocomplete="off" maxlength="30">
   </form>
 
-  <ol id="rail" class="rail" aria-label="ขั้นตอน"><li>ดูแผน</li><li>ยืนยัน</li><li>สร้าง APK</li></ol>
+  <ol id="rail" class="rail" aria-label="ขั้นตอน"><li>ดูแผน</li><li>ยืนยัน</li><li>สร้างไฟล์</li></ol>
   <p id="status" role="status" aria-live="polite"></p>
   <div id="bar" class="bar" hidden></div>
 
@@ -38,7 +47,7 @@
     <h2>แผนการแปลง</h2>
     <div id="plan-body" class="report"></div>
     <div class="actions">
-      <button id="confirm" class="btn primary" type="button">ยืนยัน สร้าง APK</button>
+      <button id="confirm" class="btn primary" type="button">ยืนยัน สร้างไฟล์</button>
       <button id="cancel" class="btn" type="button">ยกเลิก</button>
     </div>
   </section>
@@ -53,7 +62,7 @@
     <p>token เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น ให้สิทธิ์เฉพาะ repo นี้ตัวเดียว</p>
   </details>
 
-  <footer>ใช้ได้กับ repo public ที่เป็นเว็บ (HTML/JS/PWA, React/Vite) ได้ไฟล์ debug APK ที่ติดตั้งในเครื่องได้เลย แต่ยังอัปขึ้น Play Store ไม่ได้</footer>
+  <footer>ใช้ได้กับ repo public ที่เป็นเว็บ (HTML/JS/PWA, React/Vite) ไฟล์ทั้งหมดยังไม่ได้เซ็นชื่อรับรอง (Android เป็น debug APK) ติดตั้งลองใช้เองได้ แต่ยังขึ้นสโตร์ไม่ได้</footer>
 </main>
 <script type="module" src="app.js"></script>
 </body>

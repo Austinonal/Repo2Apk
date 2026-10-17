@@ -1,5 +1,5 @@
 // Builds the preview plan from GitHub's public API. No clone, no Actions, no token.
-import { TEXT, TEXT_MAX, baseFix, baseItem, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, BUILD_ITEM, WRAP, TRUNC } from './rules.mjs';
+import { TEXT, TEXT_MAX, baseFix, baseItem, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, BUILD_ITEM, wrapItems, TRUNC } from './rules.mjs';
 
 const get = async (url, json) => {
   const r = await fetch(url);
@@ -7,7 +7,7 @@ const get = async (url, json) => {
   return json ? r.json() : r.text();
 };
 
-export async function plan(owner, name, wanted) {
+export async function plan(owner, name, wanted, targets = ['android']) {
   const api = 'https://api.github.com/repos/' + owner + '/' + name;
   const branch = wanted || (await get(api, true)).default_branch;
   const tree = await get(`${api}/git/trees/${branch}?recursive=1`, true);
@@ -46,6 +46,6 @@ export async function plan(owner, name, wanted) {
     }
   }
   if (tree.truncated) items.push(TRUNC);
-  items.push(WRAP);
+  items.push(...wrapItems(targets));
   return { items, branch, count: files.length };
 }

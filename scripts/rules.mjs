@@ -37,14 +37,19 @@ export const BIG = {
 };
 
 // path (relative to the web folder) -> the rule that cuts it, or undefined
-export const rule = (p, size = 0) => JUNK.find(j => j.re.test(p)) || (size > MAX ? BIG : undefined);
+['sys', 'env', 'tests', 'map', 'docs', 'py', 'zip', 'pkg'].forEach((id, i) => { JUNK[i].id = id; });
+BIG.id = 'big';
+export const rule = (p, size = 0, skip = []) => {
+  const x = JUNK.find(j => j.re.test(p)) || (size > MAX ? BIG : undefined);
+  return x && !skip.includes(x.id) ? x : undefined;
+};
 
 // list of [path, rule] -> one plan item per rule
 export const cutItems = list => {
   const g = new Map();
   for (const [p, r] of list) g.set(r, [...(g.get(r) || []), p]);
   return [...g].map(([r, a]) => ({
-    kind: 'cut',
+    kind: 'cut', id: r.id,
     what: `${r.label}: ${a.length} รายการ (เช่น ${a.slice(0, 3).join(', ')})`,
     effect: r.effect,
   }));
@@ -60,6 +65,16 @@ export const WRAP = {
   what: 'ตัวห่อ APK (Capacitor): WebView, สิทธิ์ INTERNET, ไอคอนและ splash เริ่มต้น',
   effect: 'ทำให้เว็บเปิดเป็นแอปได้ ไอคอนจะเป็นของ Capacitor ยังไม่ใช้ไอคอนของ repo และ APK จะมีขนาดฐานหลาย MB แม้เว็บจะเล็ก',
 };
+export const WRAPS = {
+  android: WRAP,
+  windows: { kind: 'add', what: 'ตัวห่อ Windows (Electron): ตัวติดตั้ง .exe',
+    effect: 'เว็บเปิดเป็นโปรแกรมบน Windows ได้ แต่ยังไม่ได้เซ็นชื่อ ครั้งแรก Windows จะขึ้นเตือน SmartScreen (กด More info แล้ว Run anyway) และไฟล์จะใหญ่ราว 70-100 MB เพราะแถม Chromium มาด้วย' },
+  mac: { kind: 'add', what: 'ตัวห่อ macOS (Electron): ไฟล์ .dmg',
+    effect: 'ยังไม่ได้เซ็นชื่อกับ Apple เปิดครั้งแรกต้องคลิกขวาที่แอปแล้วเลือก Open (ถ้าขึ้นว่า damaged ให้รัน xattr -cr บนแอป) ไฟล์ใหญ่ราว 100 MB' },
+  ios: { kind: 'add', what: 'โปรเจกต์ Xcode (Capacitor) ไม่ใช่ไฟล์ติดตั้ง iPhone',
+    effect: 'iPhone ติดตั้งไฟล์ที่ไม่ได้เซ็นชื่อไม่ได้ ต้องมี Mac เปิดโปรเจกต์ใน Xcode แล้วเซ็นด้วย Apple ID (ลองบนเครื่องตัวเองได้ฟรี แต่แอปหมดอายุทุก 7 วัน) หรือบัญชี Apple Developer ($99 ต่อปี) เพื่อขึ้น App Store' },
+};
+export const wrapItems = ts => ts.map(t => WRAPS[t]).filter(Boolean);
 export const TRUNC = {
   kind: 'warn',
   what: 'repo ใหญ่มาก ตรวจรายการไฟล์ได้ไม่ครบ',

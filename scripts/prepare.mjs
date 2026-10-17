@@ -3,11 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { TEXT, TEXT_MAX, baseFix, baseItem, BUILD_DIRS, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, report, BUILD_ITEM, WRAP } from './rules.mjs';
+import { TEXT, TEXT_MAX, baseFix, baseItem, BUILD_DIRS, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, report, BUILD_ITEM, wrapItems } from './rules.mjs';
 
 const SRC = 'src', OUT = 'www';
 const repoName = process.env.REPO_NAME || 'app';
 const items = [], removed = [];
+const SKIP = (process.env.SKIP || '').split(',').filter(Boolean);
+const T = (process.env.TARGETS || 'android').split(',').filter(Boolean);
 const sh = (c, cwd) => execSync(c, { cwd, stdio: 'inherit' });
 const has = p => fs.existsSync(p);
 
@@ -34,7 +36,7 @@ function copy(from, to, rel = '') {
   for (const n of fs.readdirSync(from)) {
     const f = path.join(from, n), r = path.posix.join(rel, n), st = fs.statSync(f, { throwIfNoEntry: false });
     if (!st) continue;
-    const x = rule(r, st.isDirectory() ? 0 : st.size);
+    const x = rule(r, st.isDirectory() ? 0 : st.size, SKIP);
     if (x) removed.push([r, x]);
     else if (st.isDirectory()) copy(f, path.join(to, n), r);
     else fs.copyFileSync(f, path.join(to, n));
@@ -71,13 +73,15 @@ if (has(idx)) {
     : `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${repoName}</title><body style="font-family:sans-serif;padding:24px"><h2>${repoName}</h2><p>repo นี้ไม่มีหน้าเว็บ (ไม่เจอ index.html)</p>`);
   items.push(noIndex(other));
 }
-items.push(WRAP);
+items.push(...wrapItems(T));
 
 // 4. app name / id for the next step
 const title = (fs.readFileSync(idx, 'utf8').match(/<title>([^<]+)/i) || [])[1] || '';
 const name = (process.env.APP_NAME || title || repoName).replace(/[^\p{L}\p{N} \-]/gu, '').trim().slice(0, 30) || repoName;
 const id = 'com.repo2apk.a' + (repoName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app');
-fs.appendFileSync(process.env.GITHUB_ENV || '/dev/null', `APP_NAME=${name}\nAPP_ID=${id}\n`);
+const native = T.filter(t => t !== 'android').map(t => ({ t, os: t === 'windows' ? 'windows-latest' : 'macos-latest' }));
+fs.appendFileSync(process.env.GITHUB_OUTPUT || '/dev/null',
+  `name=${name}\nid=${id}\nandroid=${T.includes('android')}\nnative=${native.length > 0}\nmatrix=${JSON.stringify({ include: native })}\n`);
 
 fs.writeFileSync('report.md', '## รายงานการแปลง\n\n' + report(items));
 assert(has(idx), 'www/index.html must exist');
