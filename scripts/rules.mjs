@@ -56,7 +56,7 @@ export const cutItems = list => {
 };
 
 export const BUILD_ITEM = {
-  kind: 'add',
+  kind: 'add', id: 'build',
   what: 'รัน `npm run build` แล้วใช้โฟลเดอร์ผลลัพธ์ (dist / build / out)',
   effect: 'เว็บแนว React/Vite ต้อง build ก่อนจึงรันได้ ไม่งั้นแอปจะขึ้นหน้าว่าง ใช้เวลาเพิ่ม 1-3 นาที รายการไฟล์ที่ตัดจะรู้ตอนรายงานฉบับจริง และขั้นนี้รันสคริปต์ของ repo (npm install/build) จึงใช้กับ repo ที่ไว้ใจได้เท่านั้น',
 };
@@ -78,7 +78,7 @@ export const WRAPS = {
 };
 export const wrapItems = ts => ts.map(t => WRAPS[t]).filter(Boolean);
 export const TRUNC = {
-  kind: 'warn',
+  kind: 'warn', id: 'trunc',
   what: 'repo ใหญ่มาก ตรวจรายการไฟล์ได้ไม่ครบ',
   effect: 'แผนนี้อาจขาดบางรายการ รายงานฉบับจริงหลังแปลงจะครบถ้วนกว่า',
 };
@@ -92,9 +92,9 @@ export const dirItem = d => ({
   effect: 'ไฟล์นอกโฟลเดอร์นี้จะไม่อยู่ใน APK ถ้าหน้าเว็บอ้างถึงไฟล์นอกโฟลเดอร์ จะหาไม่เจอ',
 });
 export const noIndex = other => other
-  ? { kind: 'add', what: `ไม่มี index.html จึงสร้างหน้าที่เด้งไป \`${other}\``,
+  ? { kind: 'add', id: 'redirect', what: `ไม่มี index.html จึงสร้างหน้าที่เด้งไป \`${other}\``,
       effect: 'แอปจะเปิดที่หน้านั้นเสมอ หน้า html อื่นเข้าได้เฉพาะผ่านลิงก์ในเว็บ' }
-  : { kind: 'add', what: 'ไม่เจอ index.html เลย จึงสร้างหน้าเปล่าที่มีแค่ชื่อ repo',
+  : { kind: 'add', id: 'noindex', what: 'ไม่เจอ index.html เลย จึงสร้างหน้าเปล่าที่มีแค่ชื่อ repo',
       effect: 'APK เปิดได้แต่เป็นหน้าว่าง ควรเพิ่ม index.html ใน repo ก่อนแปลง' };
 
 const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -105,11 +105,11 @@ export function htmlFix(html) {
   let out = html;
   if (!/<meta[^>]+name=["']viewport/i.test(out) && /<head[^>]*>/i.test(out)) {
     out = out.replace(/<head[^>]*>/i, '$&<meta name="viewport" content="width=device-width,initial-scale=1">');
-    items.push({ kind: 'add', what: 'เพิ่ม `<meta viewport>` ใน index.html',
+    items.push({ kind: 'add', id: 'viewport', what: 'เพิ่ม `<meta viewport>` ใน index.html',
       effect: 'มือถือจะแสดงหน้าพอดีจอ ไม่ย่อเล็กแบบหน้าเว็บคอม ถ้าเว็บออกแบบเผื่อมือถือไว้แล้ว ก็ไม่เปลี่ยนอะไร' });
   }
   const http = [...new Set(out.match(/http:\/\/(?!localhost|www\.w3\.org)[^\s"')]+/g) || [])].slice(0, 3);
-  if (http.length) items.push({ kind: 'warn', what: `มีลิงก์ http:// ใน index.html: ${http.join(', ')}`,
+  if (http.length) items.push({ kind: 'warn', id: 'http', what: `มีลิงก์ http:// ใน index.html: ${http.join(', ')}`,
     effect: 'หน้าแอปเป็น https ลิงก์ที่ไม่เข้ารหัสมักถูกบล็อก รูป/สคริปต์/API เหล่านั้นอาจโหลดไม่ขึ้น ควรเปลี่ยนเป็น https://' });
   return { html: out, items };
 }
@@ -146,10 +146,10 @@ export const appLook = (manifest = {}) => ({
 export const iconItem = p => p
   ? { kind: 'add', what: `ใช้ \`${p}\` เป็นไอคอนแอปทุกแพลตฟอร์ม`,
       effect: 'ไอคอนบนหน้าจอ, splash และไอคอนโปรแกรมบนคอมจะเป็นของเว็บคุณ ถ้ารูปเล็กกว่า 512px ไอคอนอาจดูแตกบนจอความละเอียดสูง' }
-  : { kind: 'warn', what: 'ไม่เจอไอคอนของเว็บ (manifest, apple-touch-icon, icon.png)',
+  : { kind: 'warn', id: 'noicon', what: 'ไม่เจอไอคอนของเว็บ (manifest, apple-touch-icon, icon.png)',
       effect: 'แอปจะใช้ไอคอนเริ่มต้นของ Capacitor / Electron ถ้าอยากได้ไอคอนเอง ใส่ icon.png ขนาด 1024px ไว้ข้าง index.html' };
 export const lookItem = (look, file) => look.name && {
-  kind: 'fix', what: `ใช้ชื่อ "${look.name}" และสีพื้น ${look.bg} จาก \`${file}\``,
+  kind: 'fix', id: 'pwa', what: `ใช้ชื่อ "${look.name}" และสีพื้น ${look.bg} จาก \`${file}\``,
   effect: 'ชื่อใต้ไอคอนและสีหน้า splash จะตรงกับ PWA ของคุณ ถ้ากรอกชื่อแอปเองไว้ จะใช้ชื่อที่กรอกแทน',
 };
 
@@ -164,7 +164,35 @@ export const TEXT = /\.(html|js|mjs|css|json|webmanifest)$/;
 export const TEXT_MAX = 300e3;
 export const baseFix = (t, repo) => t.replace(new RegExp('(["\'(`])/' + esc(repo) + '/', 'g'), '$1/');
 export const baseItem = (repo, files) => ({
-  kind: 'fix',
+  kind: 'fix', id: 'base',
   what: `ตัด path แบบ GitHub Pages (\`/${repo}/\`) ออกจาก ${files.length} ไฟล์ (เช่น ${files.slice(0, 3).join(', ')})`,
   effect: 'ไม่ตัดจะทำให้ css/js/รูป/ข้อมูลโหลดไม่ขึ้นใน APK เพราะแอปเปิดจาก root ไม่ใช่โฟลเดอร์ชื่อ repo',
 });
+
+
+// score the plan: each finding costs points in one area and comes with what to do about it
+// [area, item id, points, do: 'ลด' | 'เพิ่ม' | 'แก้', tip]
+export const AREAS = { ready: 'พร้อมเปิดเป็นแอป', safe: 'ความปลอดภัย', mobile: 'รองรับมือถือ', look: 'ไอคอน / PWA', size: 'ขนาดไฟล์' };
+const CHECKS = [
+  ['ready', 'noindex', 40, 'เพิ่ม', 'เพิ่ม index.html เป็นหน้าแรกของเว็บ ไม่งั้นแอปจะเป็นหน้าว่าง'],
+  ['ready', 'redirect', 10, 'แก้', 'ตั้งชื่อหน้าแรกเป็น index.html'],
+  ['ready', 'py', 15, 'ลด', 'ย้ายโค้ด Python ไปเป็นเซิร์ฟเวอร์ออนไลน์ แล้วให้เว็บเรียกผ่าน https'],
+  ['ready', 'build', 5, 'แก้', 'เช็คว่า npm run build ผ่านบนเครื่องสะอาด (ลบ node_modules แล้วลองใหม่)'],
+  ['ready', 'base', 5, 'แก้', 'ใช้ path แบบ relative (./) แทน /ชื่อ-repo/ หรือตั้ง base: "./" ใน vite.config'],
+  ['safe', 'env', 30, 'ลด', 'ลบ .env ออกจาก repo ใส่ไว้ใน .gitignore และเปลี่ยนคีย์ที่เคยหลุดใหม่ทั้งหมด'],
+  ['safe', 'http', 15, 'แก้', 'เปลี่ยนลิงก์ http:// เป็น https://'],
+  ['mobile', 'viewport', 25, 'เพิ่ม', 'ใส่ <meta name="viewport"> และจัดหน้าให้พอดีจอมือถือ'],
+  ['look', 'noicon', 25, 'เพิ่ม', 'เพิ่มไอคอน PNG 1024×1024 (icon.png ข้าง index.html หรือใน manifest)'],
+  ['look', '!pwa', 15, 'เพิ่ม', 'เพิ่ม manifest.json ที่มี name, short_name, icons, background_color'],
+  ['size', 'big', 25, 'ลด', 'ย้ายไฟล์ที่ใหญ่เกิน 25 MB (วิดีโอ เสียง) ไปโฮสต์ที่อื่นแล้วใช้ลิงก์ https'],
+  ['size', 'zip', 5, 'ลด', 'เอาไฟล์ .zip ออกจากโฟลเดอร์เว็บ'],
+  ['size', 'trunc', 10, 'ลด', 'repo ใหญ่มาก แยกเว็บไปไว้ใน repo หรือโฟลเดอร์ของตัวเอง'],
+];
+export function grade(items) {
+  const ids = new Set(items.map(i => i.id)), built = ids.has('build');
+  const hits = CHECKS.filter(([, id]) => id[0] === '!' ? !built && !ids.has(id.slice(1)) : ids.has(id));
+  const areas = Object.fromEntries(Object.keys(AREAS).map(a => [a, 100]));
+  for (const [a, , p] of hits) areas[a] = Math.max(0, areas[a] - p * 2); // one area at x2 so a single issue shows clearly
+  const total = Math.max(0, 100 - hits.reduce((s, [, , p]) => s + p, 0));
+  return { total, areas, tips: hits.sort((a, b) => b[2] - a[2]).map(([, , p, act, tip]) => ({ p, act, tip })) };
+}

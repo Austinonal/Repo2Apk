@@ -1,5 +1,5 @@
 import { plan } from './scripts/plan.mjs';
-import { rule, cutItems, dirItem, WRAP, iconItem, report, TITLES } from './scripts/rules.mjs';
+import { rule, cutItems, dirItem, WRAP, iconItem, report, TITLES, grade, AREAS } from './scripts/rules.mjs';
 
 const $ = id => document.getElementById(id);
 const say = t => { $('status').textContent = t; };
@@ -57,6 +57,34 @@ function md(text) {
   return box;
 }
 
+// ---------- score card ----------
+function scoreCard(items) {
+  const g = grade(items), box = el('section', 'score');
+  box.setAttribute('aria-label', 'ผลประเมิน repo');
+  const tone = g.total >= 85 ? 'good' : g.total >= 60 ? 'mid' : 'low';
+  const top = el('div', 'score-top ' + tone), ring = el('div', 'ring');
+  ring.style.setProperty('--v', g.total);
+  ring.append(el('b', '', String(g.total)), el('small', '', '/100'));
+  const head = el('div');
+  head.append(el('h3', '', { good: 'พร้อมแปลงเป็นแอป', mid: 'แปลงได้ แต่ควรแก้ก่อน', low: 'ควรแก้ก่อนแปลง' }[tone]),
+    el('p', '', g.tips.length ? `เจอ ${g.tips.length} จุดที่ทำให้แอปดีขึ้นได้` : 'ไม่เจอปัญหาที่ต้องแก้'));
+  top.append(ring, head);
+  const bars = el('ul', 'areas');
+  for (const [k, label] of Object.entries(AREAS)) {
+    const v = g.areas[k], li = el('li'), bar = el('span', 'meter ' + (v >= 80 ? 'good' : v >= 50 ? 'mid' : 'low'));
+    bar.style.setProperty('--v', v); bar.setAttribute('aria-hidden', 'true');
+    li.append(el('span', '', label), bar, el('span', 'v', v + '%'));
+    bars.append(li);
+  }
+  box.append(top, bars);
+  if (g.tips.length) {
+    const ul = el('ul', 'tips');
+    for (const t of g.tips) { const li = el('li'); li.append(el('span', 'act ' + t.act, 'ควร' + t.act), el('span', '', t.tip), el('span', 'pts', '−' + t.p)); ul.append(li); }
+    box.append(el('h4', 'tips-h', 'สิ่งที่ควรทำ (เรียงจากสำคัญสุด)'), ul);
+  }
+  return box;
+}
+
 // ---------- flow state ----------
 // 0 = plan, 1 = confirm, 2 = build, 3 = all done, -1 = nothing yet
 function setStep(n) {
@@ -103,7 +131,7 @@ $('form').onsubmit = async e => {
     pending = { repo: `${u[1]}/${u[2]}`, branch: u[3] || '', targets: targets().join(','), id, version: ver };
     const head = el('p', 'plan-meta');
     inline(head, `อ่าน \`${pending.repo}\` สาขา \`${p.branch}\` แล้ว มี ${p.count} ไฟล์ นี่คือสิ่งที่จะเกิดขึ้น`);
-    $('plan-body').replaceChildren(head, md(report(p.items)));
+    $('plan-body').replaceChildren(scoreCard(p.items), head, md(report(p.items)));
     const cuts = p.items.filter(i => i.kind === 'cut');
     $('plan-body').querySelectorAll('ul.cut > li').forEach((li, i) => {
       const l = el('label', 'keep'), c = el('input');
@@ -111,7 +139,7 @@ $('form').onsubmit = async e => {
       l.append(c, el('span', '', 'เก็บไว้ ไม่ตัด')); li.append(l);
     });
     $('sample').hidden = true;
-    $('plan').hidden = false; setStep(1); say('ตรวจแผนแล้วกดยืนยัน');
+    $('plan').hidden = false; setStep(1); say('ดูคะแนนกับแผน แล้วกดยืนยันถ้าพร้อม');
     if (matchMedia('(max-width: 959px)').matches) $('plan').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   } catch (err) {
     reset();
