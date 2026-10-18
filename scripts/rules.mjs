@@ -62,17 +62,19 @@ export const BUILD_ITEM = {
 };
 export const WRAP = {
   kind: 'add',
-  what: 'ตัวห่อ APK (Capacitor): WebView, สิทธิ์ INTERNET, ไอคอนและ splash เริ่มต้น',
-  effect: 'ทำให้เว็บเปิดเป็นแอปได้ ไอคอนจะเป็นของ Capacitor ยังไม่ใช้ไอคอนของ repo และ APK จะมีขนาดฐานหลาย MB แม้เว็บจะเล็ก',
+  what: 'ตัวห่อ Android (Capacitor): WebView, สิทธิ์ INTERNET, ไอคอนและ splash จากเว็บ',
+  effect: 'ได้ debug APK ติดตั้งลองได้ทันที ถ้าตั้งคีย์ไว้ใน secrets ของ repo นี้ จะได้ APK + AAB ที่เซ็นแล้วด้วย (AAB ใช้อัปขึ้น Play Store) APK มีขนาดฐานหลาย MB แม้เว็บจะเล็ก',
 };
 export const WRAPS = {
   android: WRAP,
   windows: { kind: 'add', what: 'ตัวห่อ Windows (Electron): ตัวติดตั้ง .exe',
-    effect: 'เว็บเปิดเป็นโปรแกรมบน Windows ได้ แต่ยังไม่ได้เซ็นชื่อ ครั้งแรก Windows จะขึ้นเตือน SmartScreen (กด More info แล้ว Run anyway) และไฟล์จะใหญ่ราว 70-100 MB เพราะแถม Chromium มาด้วย' },
-  mac: { kind: 'add', what: 'ตัวห่อ macOS (Electron): ไฟล์ .dmg',
-    effect: 'ยังไม่ได้เซ็นชื่อกับ Apple เปิดครั้งแรกต้องคลิกขวาที่แอปแล้วเลือก Open (ถ้าขึ้นว่า damaged ให้รัน xattr -cr บนแอป) ไฟล์ใหญ่ราว 100 MB' },
-  ios: { kind: 'add', what: 'โปรเจกต์ Xcode (Capacitor) ไม่ใช่ไฟล์ติดตั้ง iPhone',
-    effect: 'iPhone ติดตั้งไฟล์ที่ไม่ได้เซ็นชื่อไม่ได้ ต้องมี Mac เปิดโปรเจกต์ใน Xcode แล้วเซ็นด้วย Apple ID (ลองบนเครื่องตัวเองได้ฟรี แต่แอปหมดอายุทุก 7 วัน) หรือบัญชี Apple Developer ($99 ต่อปี) เพื่อขึ้น App Store' },
+    effect: 'เว็บเปิดเป็นโปรแกรมบน Windows ได้ ลิงก์ออกนอกเว็บจะเปิดในเบราว์เซอร์ปกติ ยังไม่ได้เซ็นชื่อ ครั้งแรก Windows จะขึ้นเตือน SmartScreen (กด More info แล้ว Run anyway) ไฟล์ใหญ่ราว 70-100 MB เพราะแถม Chromium มาด้วย' },
+  mac: { kind: 'add', what: 'ตัวห่อ macOS (Electron): ไฟล์ .dmg แบบ Universal (Apple Silicon + Intel)',
+    effect: 'ใช้ได้ทั้ง Mac ชิป M และ Intel ยังไม่ได้เซ็นชื่อกับ Apple เปิดครั้งแรกต้องคลิกขวาที่แอปแล้วเลือก Open (ถ้าขึ้นว่า damaged ให้รัน xattr -cr บนแอป) ไฟล์ใหญ่ราว 150-200 MB' },
+  linux: { kind: 'add', what: 'ตัวห่อ Linux (Electron): ไฟล์ .AppImage',
+    effect: 'รันได้บน Linux แทบทุกตัวโดยไม่ต้องติดตั้ง แค่ chmod +x แล้วดับเบิลคลิก ไฟล์ใหญ่ราว 100 MB' },
+  ios: { kind: 'add', what: 'iOS (Capacitor): ไฟล์ .ipa ที่ยังไม่เซ็น + โปรเจกต์ Xcode',
+    effect: 'iPhone ไม่รับไฟล์ที่ไม่ได้เซ็น ใช้ Sideloadly หรือ AltStore (มีทั้ง Windows และ Mac) เซ็น .ipa ด้วย Apple ID ฟรีแล้วติดตั้งได้ แต่แอปหมดอายุทุก 7 วัน ถ้าจะขึ้น App Store ต้องเปิดโปรเจกต์ Xcode บน Mac และมีบัญชี Apple Developer ($99 ต่อปี)' },
 };
 export const wrapItems = ts => ts.map(t => WRAPS[t]).filter(Boolean);
 export const TRUNC = {
@@ -111,6 +113,45 @@ export function htmlFix(html) {
     effect: 'หน้าแอปเป็น https ลิงก์ที่ไม่เข้ารหัสมักถูกบล็อก รูป/สคริปต์/API เหล่านั้นอาจโหลดไม่ขึ้น ควรเปลี่ยนเป็น https://' });
   return { html: out, items };
 }
+
+// icon + manifest: same lookup for the preview and the real run
+export const ICON_RE = /\.(png|jpe?g|webp|svg)$/i;
+const attr = (tag, name) => (tag.match(new RegExp(name + '\\s*=\\s*["\']([^"\']+)', 'i')) || [])[1];
+const links = (html, rel) => (html.match(/<link\b[^>]*>/gi) || [])
+  .filter(t => new RegExp('^(shortcut )?' + rel + '$', 'i').test(attr(t, 'rel') || '')).map(t => attr(t, 'href'));
+// href relative to the file at `from` -> path relative to the web root, or '' for remote/data urls
+export const local = (href = '', from = '') => {
+  if (!href || /^([a-z]+:|\/\/)/i.test(href)) return '';
+  const parts = (href.startsWith('/') ? '' : from.split('/').slice(0, -1).join('/') + '/') + href.split(/[?#]/)[0];
+  const out = [];
+  for (const s of parts.split('/')) s === '..' ? out.pop() : s && s !== '.' && out.push(s);
+  return out.join('/');
+};
+export const manifestPath = html => local(links(html, 'manifest')[0]);
+// best-first list of icon paths: biggest manifest icon, apple-touch-icon, <link rel=icon>, common names
+export function iconCandidates(html, manifest = {}, mPath = '') {
+  const size = s => Math.max(0, ...String(s || '').split(/\s+/).map(x => parseInt(x) || (x === 'any' ? 4096 : 0)));
+  const fromManifest = (Array.isArray(manifest.icons) ? manifest.icons : [])
+    .filter(i => i && i.src).sort((a, b) => size(b.sizes) - size(a.sizes)).map(i => local(i.src, mPath));
+  return [...new Set([...fromManifest, ...links(html, 'apple-touch-icon').map(h => local(h)),
+    ...links(html, 'icon').map(h => local(h)),
+    'icon.png', 'logo.png', 'icon.svg', 'logo.svg', 'favicon.png', 'img/icon.png', 'images/icon.png', 'assets/icon.png'])]
+    .filter(p => p && ICON_RE.test(p));
+}
+const COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+export const appLook = (manifest = {}) => ({
+  name: String(manifest.short_name || manifest.name || '').trim(),
+  bg: COLOR.test(manifest.background_color) ? manifest.background_color : (COLOR.test(manifest.theme_color) ? manifest.theme_color : '#ffffff'),
+});
+export const iconItem = p => p
+  ? { kind: 'add', what: `ใช้ \`${p}\` เป็นไอคอนแอปทุกแพลตฟอร์ม`,
+      effect: 'ไอคอนบนหน้าจอ, splash และไอคอนโปรแกรมบนคอมจะเป็นของเว็บคุณ ถ้ารูปเล็กกว่า 512px ไอคอนอาจดูแตกบนจอความละเอียดสูง' }
+  : { kind: 'warn', what: 'ไม่เจอไอคอนของเว็บ (manifest, apple-touch-icon, icon.png)',
+      effect: 'แอปจะใช้ไอคอนเริ่มต้นของ Capacitor / Electron ถ้าอยากได้ไอคอนเอง ใส่ icon.png ขนาด 1024px ไว้ข้าง index.html' };
+export const lookItem = (look, file) => look.name && {
+  kind: 'fix', what: `ใช้ชื่อ "${look.name}" และสีพื้น ${look.bg} จาก \`${file}\``,
+  effect: 'ชื่อใต้ไอคอนและสีหน้า splash จะตรงกับ PWA ของคุณ ถ้ากรอกชื่อแอปเองไว้ จะใช้ชื่อที่กรอกแทน',
+};
 
 export const TITLES = { cut: 'ตัดออก', add: 'เพิ่ม / สร้างให้', fix: 'แก้ให้', warn: 'ควรเช็ค' };
 export const report = items => Object.entries(TITLES).map(([k, t]) => {
