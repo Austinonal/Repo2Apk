@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="แปลง repo เว็บบน GitHub เป็นแอป Android, iOS, Windows, macOS และ Linux พร้อมดูแผนก่อนแปลง">
-<title>Repo2App · เปลี่ยน repo เป็นแอป</title>
+<meta name="description" content="แปลง repo เว็บบน GitHub เป็นแอป Android, iOS, Windows, macOS และ Linux พร้อมดูแผนก่อนแปลง" data-en-content="Turn a GitHub web repo into an Android, iOS, Windows, macOS and Linux app, with a plan and score before you convert">
+<title data-en="Repo2App · Turn a repo into an app">Repo2App · เปลี่ยน repo เป็นแอป</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -32,19 +32,20 @@
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
 </svg>
 
-<a class="skip" href="#main">ข้ามไปเนื้อหา</a>
+<a class="skip" href="#main" data-en="Skip to content">ข้ามไปเนื้อหา</a>
 
 <header class="nav">
   <div class="nav-in">
-    <a class="brand" href="./" aria-label="Repo2App หน้าแรก">
+    <a class="brand" href="./" aria-label="Repo2App หน้าแรก" data-en-aria-label="Repo2App home">
       <span class="brand-mark" aria-hidden="true"></span>Repo2App
     </a>
     <div class="nav-actions">
-      <button id="theme" class="icon-btn" type="button" aria-label="สลับธีมสว่าง/มืด">
+      <button id="lang" class="btn ghost sm" type="button" aria-label="Language / ภาษา">EN</button>
+      <button id="theme" class="icon-btn" type="button" aria-label="สลับธีมสว่าง/มืด" data-en-aria-label="Toggle light/dark theme">
         <svg class="ic only-light"><use href="#i-moon"/></svg><svg class="ic only-dark"><use href="#i-sun"/></svg>
       </button>
       <button id="open-setup" class="btn ghost sm" type="button">
-        <svg class="ic"><use href="#i-key"/></svg><span>ตั้งค่า token</span><span id="tok-dot" class="dot" hidden></span>
+        <svg class="ic"><use href="#i-key"/></svg><span data-en="Set token">ตั้งค่า token</span><span id="tok-dot" class="dot" hidden></span>
       </button>
     </div>
   </div>
@@ -52,71 +53,71 @@
 
 <main id="main">
   <section class="hero">
-    <p class="eyebrow"><svg class="ic"><use href="#i-bolt"/></svg>เว็บ → แอป 5 แพลตฟอร์ม</p>
-    <h1>เปลี่ยน repo เว็บ<br>เป็น <span class="grad">แอปจริง</span></h1>
-    <p class="lead">วางลิงก์ GitHub ระบบจะบอกก่อนว่าจะตัดอะไร เพิ่มอะไร และแต่ละอย่างส่งผลกับแอปยังไง เมื่อคุณกดยืนยันจึงสร้างไฟล์ให้</p>
-    <ul class="pills" aria-label="จุดเด่น">
-      <li><svg class="ic"><use href="#i-eye"/></svg>ประเมินคะแนนก่อนแปลง</li>
-      <li><svg class="ic"><use href="#i-shield"/></svg>ตัดไฟล์ลับออกให้</li>
-      <li><svg class="ic"><use href="#i-check"/></svg>ใช้ไอคอนจากเว็บคุณ</li>
+    <p class="eyebrow"><svg class="ic"><use href="#i-bolt"/></svg><span data-en="Web → app on 5 platforms">เว็บ → แอป 5 แพลตฟอร์ม</span></p>
+    <h1 data-en="Turn a web repo<br>into a <span class=&quot;grad&quot;>real app</span>">เปลี่ยน repo เว็บ<br>เป็น <span class="grad">แอปจริง</span></h1>
+    <p class="lead" data-en="Paste a GitHub link. First we show what will be removed and added, and how each change affects your app. Files are only built after you confirm.">วางลิงก์ GitHub ระบบจะบอกก่อนว่าจะตัดอะไร เพิ่มอะไร และแต่ละอย่างส่งผลกับแอปยังไง เมื่อคุณกดยืนยันจึงสร้างไฟล์ให้</p>
+    <ul class="pills" aria-label="จุดเด่น" data-en-aria-label="Highlights">
+      <li><svg class="ic"><use href="#i-eye"/></svg><span data-en="Scored before you convert">ประเมินคะแนนก่อนแปลง</span></li>
+      <li><svg class="ic"><use href="#i-shield"/></svg><span data-en="Secrets are removed for you">ตัดไฟล์ลับออกให้</span></li>
+      <li><svg class="ic"><use href="#i-check"/></svg><span data-en="Uses your site's own icon">ใช้ไอคอนจากเว็บคุณ</span></li>
     </ul>
   </section>
 
   <div class="layout">
     <form id="form" class="panel builder" novalidate>
-      <div class="step-head"><span class="num">1</span><h2>ต้นทาง</h2></div>
-      <label for="url">ลิงก์ GitHub repo</label>
+      <div class="step-head"><span class="num">1</span><h2 data-en="Source">ต้นทาง</h2></div>
+      <label for="url" data-en="GitHub repo link">ลิงก์ GitHub repo</label>
       <div class="input-icon">
         <svg class="ic"><use href="#i-github"/></svg>
-        <input id="url" autocomplete="off" inputmode="url" spellcheck="false" placeholder="github.com/ชื่อคุณ/โปรเจกต์" aria-describedby="url-help">
+        <input id="url" autocomplete="off" inputmode="url" spellcheck="false" placeholder="github.com/ชื่อคุณ/โปรเจกต์" data-en-placeholder="github.com/you/project" aria-describedby="url-help">
       </div>
-      <p id="url-help" class="help">repo ต้องเป็น public ใส่ลิงก์สาขาได้ เช่น <code>/tree/dev</code></p>
+      <p id="url-help" class="help" data-en="The repo must be public. You can link a branch, e.g. <code>/tree/dev</code>">repo ต้องเป็น public ใส่ลิงก์สาขาได้ เช่น <code>/tree/dev</code></p>
 
-      <div class="step-head"><span class="num">2</span><h2 id="targets-title">แปลงเป็น</h2></div>
+      <div class="step-head"><span class="num">2</span><h2 id="targets-title" data-en="Convert to">แปลงเป็น</h2></div>
       <fieldset class="targets" aria-labelledby="targets-title">
         <label class="target"><input type="checkbox" name="t" value="android" checked>
-          <svg class="ic lg"><use href="#i-android"/></svg><b>Android</b><span class="fmt">.apk · .aab</span><span class="desc">ติดตั้งได้ทันที</span></label>
+          <svg class="ic lg"><use href="#i-android"/></svg><b>Android</b><span class="fmt">.apk · .aab</span><span class="desc" data-en="Install right away">ติดตั้งได้ทันที</span></label>
         <label class="target"><input type="checkbox" name="t" value="ios">
-          <svg class="ic lg"><use href="#i-ios"/></svg><b>iOS</b><span class="fmt">.ipa · Xcode</span><span class="desc">ผ่าน Sideloadly</span></label>
+          <svg class="ic lg"><use href="#i-ios"/></svg><b>iOS</b><span class="fmt">.ipa · Xcode</span><span class="desc" data-en="Via Sideloadly">ผ่าน Sideloadly</span></label>
         <label class="target"><input type="checkbox" name="t" value="windows">
-          <svg class="ic lg"><use href="#i-windows"/></svg><b>Windows</b><span class="fmt">.exe</span><span class="desc">ตัวติดตั้ง</span></label>
+          <svg class="ic lg"><use href="#i-windows"/></svg><b>Windows</b><span class="fmt">.exe</span><span class="desc" data-en="Installer">ตัวติดตั้ง</span></label>
         <label class="target"><input type="checkbox" name="t" value="mac">
-          <svg class="ic lg"><use href="#i-mac"/></svg><b>macOS</b><span class="fmt">.dmg</span><span class="desc">ชิป M + Intel</span></label>
+          <svg class="ic lg"><use href="#i-mac"/></svg><b>macOS</b><span class="fmt">.dmg</span><span class="desc" data-en="M-series + Intel">ชิป M + Intel</span></label>
         <label class="target"><input type="checkbox" name="t" value="linux">
-          <svg class="ic lg"><use href="#i-linux"/></svg><b>Linux</b><span class="fmt">.AppImage</span><span class="desc">ไม่ต้องติดตั้ง</span></label>
+          <svg class="ic lg"><use href="#i-linux"/></svg><b>Linux</b><span class="fmt">.AppImage</span><span class="desc" data-en="No install needed">ไม่ต้องติดตั้ง</span></label>
       </fieldset>
 
       <details class="more">
-        <summary>ตัวเลือกเพิ่มเติม <span class="muted">ชื่อแอป · App ID · เวอร์ชัน</span></summary>
+        <summary><span data-en="More options">ตัวเลือกเพิ่มเติม</span> <span class="muted" data-en="App name · App ID · Version">ชื่อแอป · App ID · เวอร์ชัน</span></summary>
         <div class="grid2">
           <div class="span2">
-            <label for="appname">ชื่อแอป</label>
-            <input id="appname" autocomplete="off" maxlength="30" placeholder="เว้นว่าง = ใช้จาก manifest / title">
+            <label for="appname" data-en="App name">ชื่อแอป</label>
+            <input id="appname" autocomplete="off" maxlength="30" placeholder="เว้นว่าง = ใช้จาก manifest / title" data-en-placeholder="Empty = use manifest / title">
           </div>
           <div>
             <label for="appid">App ID</label>
-            <input id="appid" autocomplete="off" spellcheck="false" placeholder="com.ชื่อคุณ.แอป" aria-describedby="appid-help">
+            <input id="appid" autocomplete="off" spellcheck="false" placeholder="com.ชื่อคุณ.แอป" data-en-placeholder="com.you.app" aria-describedby="appid-help">
           </div>
           <div>
-            <label for="appver">เวอร์ชัน</label>
+            <label for="appver" data-en="Version">เวอร์ชัน</label>
             <input id="appver" autocomplete="off" inputmode="decimal" placeholder="1.0.0">
           </div>
-          <p id="appid-help" class="help span2">ตั้ง App ID ให้คงที่ถ้าจะอัปเดตแอปเดิมหรือขึ้นสโตร์ (ตัวพิมพ์เล็ก a-z คั่นด้วยจุด)</p>
+          <p id="appid-help" class="help span2" data-en="Keep the App ID the same if you will update an existing app or publish to a store (lowercase a-z, separated by dots)">ตั้ง App ID ให้คงที่ถ้าจะอัปเดตแอปเดิมหรือขึ้นสโตร์ (ตัวพิมพ์เล็ก a-z คั่นด้วยจุด)</p>
         </div>
       </details>
 
       <p id="form-err" class="field-err" role="alert" hidden></p>
       <button id="plan-btn" class="btn primary block" type="submit">
-        <span>ประเมิน + ดูแผน</span><svg class="ic"><use href="#i-arrow"/></svg>
+        <span data-en="Score + preview plan">ประเมิน + ดูแผน</span><svg class="ic"><use href="#i-arrow"/></svg>
       </button>
     </form>
 
     <section class="panel stage" aria-labelledby="stage-title">
-      <h2 id="stage-title" class="sr-only">ความคืบหน้าและแผน</h2>
-      <ol id="rail" class="rail" aria-label="ขั้นตอน">
-        <li><span class="dotnum">1</span><span>ดูแผน</span></li>
-        <li><span class="dotnum">2</span><span>ยืนยัน</span></li>
-        <li><span class="dotnum">3</span><span>สร้างไฟล์</span></li>
+      <h2 id="stage-title" class="sr-only" data-en="Progress and plan">ความคืบหน้าและแผน</h2>
+      <ol id="rail" class="rail" aria-label="ขั้นตอน" data-en-aria-label="Steps">
+        <li><span class="dotnum">1</span><span data-en="Plan">ดูแผน</span></li>
+        <li><span class="dotnum">2</span><span data-en="Confirm">ยืนยัน</span></li>
+        <li><span class="dotnum">3</span><span data-en="Build">สร้างไฟล์</span></li>
       </ol>
       <div class="status-row">
         <p id="status" role="status" aria-live="polite"></p>
@@ -124,17 +125,17 @@
       </div>
 
       <div id="sample">
-        <div class="sample-tag">ตัวอย่าง</div>
-        <h3 class="stage-h">แผนที่คุณจะเห็นหน้าตาแบบนี้</h3>
+        <div class="sample-tag" data-en="Example">ตัวอย่าง</div>
+        <h3 class="stage-h" data-en="This is what your plan will look like">แผนที่คุณจะเห็นหน้าตาแบบนี้</h3>
         <div id="sample-body" class="report"></div>
       </div>
 
       <div id="plan" hidden>
-        <h3 class="stage-h">ผลประเมินและแผนการแปลง</h3>
+        <h3 class="stage-h" data-en="Score and conversion plan">ผลประเมินและแผนการแปลง</h3>
         <div id="plan-body" class="report"></div>
         <div class="actions sticky">
-          <button id="confirm" class="btn primary" type="button"><svg class="ic"><use href="#i-check"/></svg><span>ยืนยัน สร้างไฟล์</span></button>
-          <button id="cancel" class="btn ghost" type="button">ยกเลิก</button>
+          <button id="confirm" class="btn primary" type="button"><svg class="ic"><use href="#i-check"/></svg><span data-en="Confirm and build">ยืนยัน สร้างไฟล์</span></button>
+          <button id="cancel" class="btn ghost" type="button" data-en="Cancel">ยกเลิก</button>
         </div>
       </div>
 
@@ -143,26 +144,26 @@
   </div>
 
   <footer class="foot">
-    <p>ใช้ได้กับ repo public ที่เป็นเว็บ (HTML/JS/PWA, React/Vite) ไฟล์ทั้งหมดยังไม่ได้เซ็นรับรอง ติดตั้งลองใช้เองได้ ถ้าจะขึ้นสโตร์ต้องเซ็นเอง (Android ตั้ง keystore ใน secrets ได้)</p>
+    <p data-en="Works with public repos that are websites (HTML/JS/PWA, React/Vite). All files are unsigned: fine to install and try yourself, but to publish to a store you must sign them (for Android, set a keystore in secrets).">ใช้ได้กับ repo public ที่เป็นเว็บ (HTML/JS/PWA, React/Vite) ไฟล์ทั้งหมดยังไม่ได้เซ็นรับรอง ติดตั้งลองใช้เองได้ ถ้าจะขึ้นสโตร์ต้องเซ็นเอง (Android ตั้ง keystore ใน secrets ได้)</p>
   </footer>
 </main>
 
 <dialog id="setup" aria-labelledby="setup-title">
   <form method="dialog" class="dlg">
     <div class="dlg-head">
-      <h2 id="setup-title">ตั้งค่า GitHub token</h2>
-      <button class="icon-btn" value="close" aria-label="ปิด"><svg class="ic"><use href="#i-x"/></svg></button>
+      <h2 id="setup-title" data-en="Set up GitHub token">ตั้งค่า GitHub token</h2>
+      <button class="icon-btn" value="close" aria-label="ปิด" data-en-aria-label="Close"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
-    <p class="help">ดูแผนได้โดยไม่ต้องตั้งค่า แต่ตอนกดสร้างไฟล์ ต้องมี token ที่สั่ง build ใน repo ของเว็บนี้ได้ ตั้งครั้งเดียว</p>
-    <label for="conv">repo ของเว็บนี้</label>
-    <input id="conv" autocomplete="off" spellcheck="false" placeholder="ชื่อคุณ/repo2apk">
+    <p class="help" data-en="You can see the plan without any setup, but to build files you need a token that can start builds in this site's repo. Set it once.">ดูแผนได้โดยไม่ต้องตั้งค่า แต่ตอนกดสร้างไฟล์ ต้องมี token ที่สั่ง build ใน repo ของเว็บนี้ได้ ตั้งครั้งเดียว</p>
+    <label for="conv" data-en="This site's repo">repo ของเว็บนี้</label>
+    <input id="conv" autocomplete="off" spellcheck="false" placeholder="ชื่อคุณ/repo2apk" data-en-placeholder="you/repo2apk">
     <label for="tok">Fine-grained token</label>
     <input id="tok" type="password" autocomplete="off" placeholder="github_pat_..." aria-describedby="tok-help">
-    <p id="tok-help" class="help">สิทธิ์ที่ต้องมี: <b>Actions</b> และ <b>Contents</b> = Read and write เฉพาะ repo นี้ token เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น
+    <p id="tok-help" class="help" data-en="Required permissions: <b>Actions</b> and <b>Contents</b> = Read and write, for this repo only. The token is stored only in this browser. <a href=&quot;https://github.com/settings/personal-access-tokens/new&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Create a token</a>">สิทธิ์ที่ต้องมี: <b>Actions</b> และ <b>Contents</b> = Read and write เฉพาะ repo นี้ token เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น
       <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">สร้าง token</a></p>
     <div class="actions">
-      <button id="save-setup" class="btn primary" value="save">บันทึก</button>
-      <button class="btn ghost" value="close">ปิด</button>
+      <button id="save-setup" class="btn primary" value="save" data-en="Save">บันทึก</button>
+      <button class="btn ghost" value="close" data-en="Close">ปิด</button>
     </div>
   </form>
 </dialog>

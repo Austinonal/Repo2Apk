@@ -10,6 +10,7 @@ on:
       name: { description: 'app name', required: false, default: '' }
       id: { description: 'app id, e.g. com.me.app', required: false, default: '' }
       version: { description: 'version, e.g. 1.2.0', required: false, default: '' }
+      lang: { description: 'report language: th or en', required: false, default: 'th' }
 
 permissions:
   contents: write
@@ -23,6 +24,7 @@ env:
   APP_NAME: ${{ inputs.name }}
   APP_ID: ${{ inputs.id }}
   APP_VERSION: ${{ inputs.version }}
+  APP_LANG: ${{ inputs.lang }}
 
 jobs:
   prepare:
@@ -49,6 +51,7 @@ jobs:
           [[ "$TARGETS" =~ ^[a-z,]+$ && "$SKIP" =~ ^[a-z,]*$ ]] || { echo bad input; exit 1; }
           [[ -z "$APP_ID" || "$APP_ID" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]] || { echo bad app id; exit 1; }
           [[ -z "$APP_VERSION" || "$APP_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || { echo bad version; exit 1; }
+          [[ "$APP_LANG" =~ ^(th|en)?$ ]] || { echo bad lang; exit 1; }
           git clone --depth 1 ${BRANCH:+-b "$BRANCH"} "https://github.com/$REPO" src
       - name: Image tools for the icon
         run: npm i --no-save --no-audit --no-fund sharp@0.34
@@ -69,7 +72,8 @@ jobs:
         if: failure()
         run: |
           mkdir -p out
-          { echo "### สาเหตุที่ เว็บ (ขั้นเตรียม/build) สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          { L "### สาเหตุที่ เว็บ (ขั้นเตรียม/build) สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)" "### Why the web step (prepare/build) failed (last 25 log lines)"
             tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-prepare-error.md"
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -135,16 +139,18 @@ jobs:
             cp app/android/app-release.apk "out/$N-android.apk"
             cp app/android/app/build/outputs/bundle/release/app-release.aab "out/$N-android.aab"
           fi
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          SZ=$(du -h "$APK" | cut -f1); NF=$(find app/www -type f | wc -l)
           {
-            echo "### Android ที่ได้"
-            echo "- debug APK: $(du -h "$APK" | cut -f1) เวอร์ชัน $VER"
+            L "### Android ที่ได้" "### Android result"
+            L "- debug APK: $SZ เวอร์ชัน $VER" "- debug APK: $SZ, version $VER"
             if [ -f app/android/app-release.apk ]; then
-              echo "- APK + AAB ที่เซ็นแล้ว พร้อมอัปขึ้น Play Store (versionCode $GITHUB_RUN_NUMBER)"
+              L "- APK + AAB ที่เซ็นแล้ว พร้อมอัปขึ้น Play Store (versionCode $GITHUB_RUN_NUMBER)" "- Signed APK + AAB, ready for Google Play (versionCode $GITHUB_RUN_NUMBER)"
             else
-              echo "- ยังไม่ได้เซ็นแบบ release (ตั้ง secrets ANDROID_KEYSTORE_* ใน repo นี้เพื่อให้ได้ AAB ขึ้น Play Store)"
+              L "- ยังไม่ได้เซ็นแบบ release (ตั้ง secrets ANDROID_KEYSTORE_* ใน repo นี้เพื่อให้ได้ AAB ขึ้น Play Store)" "- Not release-signed (set the ANDROID_KEYSTORE_* secrets in this repo to get an AAB for Google Play)"
             fi
-            echo "- ไฟล์เว็บที่ใส่ใน APK: $(find app/www -type f | wc -l) ไฟล์"
-            echo "- สิทธิ์ที่ APK ขอ:"
+            L "- ไฟล์เว็บที่ใส่ใน APK: $NF ไฟล์" "- Web files inside the APK: $NF"
+            L "- สิทธิ์ที่ APK ขอ:" "- Permissions the APK requests:"
             "$AAPT" dump permissions "$APK" | grep uses-permission | sed 's/^/  - /' || true
             echo
           } > out/facts-android.md
@@ -152,7 +158,8 @@ jobs:
         if: failure()
         run: |
           mkdir -p out
-          { echo "### สาเหตุที่ Android สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          { L "### สาเหตุที่ Android สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)" "### Why Android failed (last 25 log lines)"
             tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-Android-error.md"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -231,7 +238,9 @@ jobs:
           case "$T" in windows) F=--win; X=exe;; mac) F=--mac; X=dmg;; linux) F=--linux; X=AppImage;; esac
           npx electron-builder $F --publish never
           cp "dist/app.$X" "../out/${REPO#*/}-$T.$X"
-          printf '### %s ที่ได้\n- ขนาด: %s เวอร์ชัน %s\n\n' "$T" "$(du -h "dist/app.$X" | cut -f1)" "$VER" > ../out/facts-$T.md
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          SZ=$(du -h "dist/app.$X" | cut -f1)
+          { L "### $T ที่ได้" "### $T result"; L "- ขนาด: $SZ เวอร์ชัน $VER" "- Size: $SZ, version $VER"; echo; } > ../out/facts-$T.md
       - name: iOS (unsigned .ipa + Xcode project)
         if: matrix.t == 'ios'
         run: |
@@ -256,21 +265,24 @@ jobs:
             mkdir -p "$RUNNER_TEMP/ipa/Payload" && cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/ipa/Payload/"
             (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/out/$N-ios-unsigned.ipa" Payload) && IPA=yes
           fi
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
           {
-            echo "### iOS ที่ได้"
+            L "### iOS ที่ได้" "### iOS result"
             if [ $IPA = yes ]; then
-              echo "- \`.ipa\` ยังไม่เซ็น ($(du -h "../out/$N-ios-unsigned.ipa" | cut -f1)): ติดตั้งด้วย Sideloadly หรือ AltStore แล้วล็อกอิน Apple ID ของคุณ"
+              SZ=$(du -h "../out/$N-ios-unsigned.ipa" | cut -f1)
+              L "- \`.ipa\` ยังไม่เซ็น ($SZ): ติดตั้งด้วย Sideloadly หรือ AltStore แล้วล็อกอิน Apple ID ของคุณ" "- Unsigned \`.ipa\` ($SZ): install it with Sideloadly or AltStore and sign in with your Apple ID"
             else
-              echo "- สร้าง .ipa ไม่สำเร็จ แต่โปรเจกต์ Xcode ยังใช้ได้"
+              L "- สร้าง .ipa ไม่สำเร็จ แต่โปรเจกต์ Xcode ยังใช้ได้" "- The .ipa could not be built, but the Xcode project still works"
             fi
-            echo "- โปรเจกต์ Xcode: แตก zip บน Mac รัน \`npm install && npx cap sync ios\` แล้วเปิด ios/App ใน Xcode เพื่อเซ็นและอัปขึ้น App Store"
+            L "- โปรเจกต์ Xcode: แตก zip บน Mac รัน \`npm install && npx cap sync ios\` แล้วเปิด ios/App ใน Xcode เพื่อเซ็นและอัปขึ้น App Store" "- Xcode project: unzip on a Mac, run \`npm install && npx cap sync ios\`, then open ios/App in Xcode to sign and publish to the App Store"
             echo
           } > ../out/facts-ios.md
       - name: Error summary
         if: failure()
         run: |
           mkdir -p out
-          { echo "### สาเหตุที่ $T สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          { L "### สาเหตุที่ $T สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)" "### Why $T failed (last 25 log lines)"
             tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-$T-error.md"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -294,15 +306,16 @@ jobs:
       - name: Release
         run: |
           shopt -s nullglob
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
           bins=(out/*.apk out/*.aab out/*.exe out/*.dmg out/*.AppImage out/*.ipa out/*.zip)
           if [ ${#bins[@]} -eq 0 ]; then
-            { echo "ดู log เต็ม: $RUN_URL"; echo; cat out/facts-*-error.md 2>/dev/null; } > notes.md
+            { L "ดู log เต็ม: $RUN_URL" "Full log: $RUN_URL"; echo; cat out/facts-*-error.md 2>/dev/null; } > notes.md
             gh release create "apk-$JOB" --title FAILED --notes-file notes.md; exit 0
           fi
           {
             cat site/report.md out/facts-*.md 2>/dev/null
-            [ "${{ needs.android.result }}" = failure ] && echo "- Android สร้างไม่สำเร็จ ดู log: $RUN_URL"
-            [ "${{ needs.native.result }}" = failure ] && echo "- Windows/macOS/Linux/iOS บางตัวสร้างไม่สำเร็จ ดู log: $RUN_URL"
+            [ "${{ needs.android.result }}" = failure ] && L "- Android สร้างไม่สำเร็จ ดู log: $RUN_URL" "- Android failed. Log: $RUN_URL"
+            [ "${{ needs.native.result }}" = failure ] && L "- Windows/macOS/Linux/iOS บางตัวสร้างไม่สำเร็จ ดู log: $RUN_URL" "- Some of Windows/macOS/Linux/iOS failed. Log: $RUN_URL"
             true
           } > notes.md
           gh release create "apk-$JOB" "${bins[@]}" --title "${{ needs.prepare.outputs.name }}" --notes-file notes.md

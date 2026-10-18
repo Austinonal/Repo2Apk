@@ -119,6 +119,7 @@ code { font: 0.85em var(--font-mono); background: var(--code-bg); padding: 2px 6
 .btn[aria-busy="true"] .ic { animation: nudge 1s var(--ease-out) infinite; }
 @keyframes nudge { 50% { transform: translateX(4px); } }
 .btn.sm span:not(.dot) { display: none; }
+#lang { min-width: 56px; }
 @media (min-width: 560px) { .btn.sm span:not(.dot) { display: inline; } }
 
 label { display: block; font-weight: 600; font-size: 0.9375rem; margin-bottom: var(--space-2); }
@@ -310,7 +311,6 @@ dialog[open] { animation: pop var(--dur) var(--ease-out); }
 .tips { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .tips li { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: baseline; font-size: 0.9375rem; line-height: 1.5; }
 .act { padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
-.act.ลด { --c: var(--color-cut); } .act.เพิ่ม { --c: var(--color-add); } .act.แก้ { --c: var(--color-fix); }
 .pts { font: 0.75rem var(--font-mono); color: var(--color-muted); }
 .report .score ul { border: 0; border-radius: 0; background: none; overflow: visible; }
 .report .score li { padding: 0; border: 0; }
