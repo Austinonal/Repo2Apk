@@ -1,0 +1,277 @@
+name: build-app
+on:
+  workflow_dispatch:
+    inputs:
+      repo: { description: 'owner/name', required: true }
+      branch: { required: false, default: '' }
+      job: { description: 'job id from the website', required: true }
+      targets: { description: 'android,windows,mac,linux,ios', required: false, default: 'android' }
+      skip: { description: 'rule ids to keep (not cut)', required: false, default: '' }
+      name: { description: 'app name', required: false, default: '' }
+      id: { description: 'app id, e.g. com.me.app', required: false, default: '' }
+      version: { description: 'version, e.g. 1.2.0', required: false, default: '' }
+
+permissions:
+  contents: write
+
+env:
+  REPO: ${{ inputs.repo }}
+  BRANCH: ${{ inputs.branch }}
+  JOB: ${{ inputs.job }}
+  TARGETS: ${{ inputs.targets }}
+  SKIP: ${{ inputs.skip }}
+  APP_NAME: ${{ inputs.name }}
+  APP_ID: ${{ inputs.id }}
+  APP_VERSION: ${{ inputs.version }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      name: ${{ steps.p.outputs.name }}
+      id: ${{ steps.p.outputs.id }}
+      version: ${{ steps.p.outputs.version }}
+      bg: ${{ steps.p.outputs.bg }}
+      icon: ${{ steps.p.outputs.icon }}
+      android: ${{ steps.p.outputs.android }}
+      native: ${{ steps.p.outputs.native }}
+      matrix: ${{ steps.p.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false } # target repo's npm scripts must not be able to read our token
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Clone target repo (public only)
+        run: |
+          [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo bad repo; exit 1; }
+          [[ "$BRANCH" =~ ^[A-Za-z0-9_./-]*$ ]] || { echo bad branch; exit 1; }
+          [[ "$TARGETS" =~ ^[a-z,]+$ && "$SKIP" =~ ^[a-z,]*$ ]] || { echo bad input; exit 1; }
+          [[ -z "$APP_ID" || "$APP_ID" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]] || { echo bad app id; exit 1; }
+          [[ -z "$APP_VERSION" || "$APP_VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || { echo bad version; exit 1; }
+          git clone --depth 1 ${BRANCH:+-b "$BRANCH"} "https://github.com/$REPO" src
+      - name: Image tools for the icon
+        run: npm i --no-save --no-audit --no-fund sharp@0.34
+      - id: p
+        name: Clean up repo into www/ + icon + report
+        run: node scripts/prepare.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: |
+            www
+            report.md
+            icon.png
+          include-hidden-files: true
+
+  android:
+    needs: prepare
+    if: needs.prepare.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NAME: ${{ needs.prepare.outputs.name }}
+      ID: ${{ needs.prepare.outputs.id }}
+      VER: ${{ needs.prepare.outputs.version }}
+      BG: ${{ needs.prepare.outputs.bg }}
+      ICON: ${{ needs.prepare.outputs.icon }}
+      # optional: set these 4 secrets in this repo to also get a signed APK + AAB (Play Store)
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: site, path: site }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Build APK with Capacitor
+        run: |
+          mkdir app && mv site/www app/www && cd app
+          npm init -y >/dev/null
+          npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @capacitor/assets@3
+          npx cap init "$NAME" "$ID" --web-dir www
+          npx cap add android
+          if [ "$ICON" = true ]; then
+            mkdir assets && cp ../site/icon.png assets/logo.png
+            npx @capacitor/assets generate --android --iconBackgroundColor "$BG" --iconBackgroundColorDark "$BG" --splashBackgroundColor "$BG" --splashBackgroundColorDark "$BG"
+          fi
+          sed -i -E "s/versionCode [0-9]+/versionCode $GITHUB_RUN_NUMBER/; s/versionName \"[^\"]*\"/versionName \"$VER\"/" android/app/build.gradle
+          npx cap sync android
+          cd android
+          ./gradlew assembleDebug --no-daemon
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ks.jks"
+            ./gradlew assembleRelease bundleRelease --no-daemon
+            BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+            "$BT/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+            "$BT/apksigner" sign --ks "$RUNNER_TEMP/ks.jks" --ks-pass env:KS_PASS --ks-key-alias "$KS_ALIAS" --key-pass env:KEY_PASS \
+              --out app-release.apk "$RUNNER_TEMP/aligned.apk"
+            jarsigner -keystore "$RUNNER_TEMP/ks.jks" -storepass:env KS_PASS -keypass:env KEY_PASS \
+              app/build/outputs/bundle/release/app-release.aab "$KS_ALIAS"
+            rm "$RUNNER_TEMP/ks.jks"
+          fi
+      - name: Collect
+        run: |
+          N=${REPO#*/}
+          APK=app/android/app/build/outputs/apk/debug/app-debug.apk
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)
+          mkdir out && cp "$APK" "out/$N-android-debug.apk"
+          if [ -f app/android/app-release.apk ]; then
+            cp app/android/app-release.apk "out/$N-android.apk"
+            cp app/android/app/build/outputs/bundle/release/app-release.aab "out/$N-android.aab"
+          fi
+          {
+            echo "### Android ที่ได้"
+            echo "- debug APK: $(du -h "$APK" | cut -f1) เวอร์ชัน $VER"
+            if [ -f app/android/app-release.apk ]; then
+              echo "- APK + AAB ที่เซ็นแล้ว พร้อมอัปขึ้น Play Store (versionCode $GITHUB_RUN_NUMBER)"
+            else
+              echo "- ยังไม่ได้เซ็นแบบ release (ตั้ง secrets ANDROID_KEYSTORE_* ใน repo นี้เพื่อให้ได้ AAB ขึ้น Play Store)"
+            fi
+            echo "- ไฟล์เว็บที่ใส่ใน APK: $(find app/www -type f | wc -l) ไฟล์"
+            echo "- สิทธิ์ที่ APK ขอ:"
+            "$AAPT" dump permissions "$APK" | grep uses-permission | sed 's/^/  - /' || true
+            echo
+          } > out/facts-android.md
+      - uses: actions/upload-artifact@v4
+        with: { name: out-android, path: out }
+
+  native:
+    needs: prepare
+    if: needs.prepare.outputs.native == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    defaults:
+      run: { shell: bash }
+    env:
+      NAME: ${{ needs.prepare.outputs.name }}
+      ID: ${{ needs.prepare.outputs.id }}
+      VER: ${{ needs.prepare.outputs.version }}
+      BG: ${{ needs.prepare.outputs.bg }}
+      ICON: ${{ needs.prepare.outputs.icon }}
+      T: ${{ matrix.t }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: site, path: site }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Windows / macOS / Linux (Electron)
+        if: matrix.t != 'ios'
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+        run: |
+          mkdir out el && mv site/www el/www && cd el
+          if [ "$ICON" = true ]; then mkdir build && cp ../site/icon.png build/icon.png; fi
+          cat > main.js <<'JS'
+          const { app, BrowserWindow, protocol, net, shell } = require('electron');
+          const path = require('path'), { pathToFileURL } = require('url');
+          const { name, appId, bg } = require('./package.json').r2a;
+          protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+          if (!app.requestSingleInstanceLock()) app.quit();
+          let win;
+          app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+          app.whenReady().then(() => {
+            app.setAppUserModelId(appId);
+            const root = path.join(__dirname, 'www');
+            protocol.handle('app', r => {
+              const p = path.normalize(decodeURIComponent(new URL(r.url).pathname));
+              const f = path.join(root, p === '/' ? 'index.html' : p);
+              return f.startsWith(root) ? net.fetch(pathToFileURL(f).toString()) : new Response('', { status: 403 });
+            });
+            win = new BrowserWindow({ width: 1100, height: 760, title: name, backgroundColor: bg, autoHideMenuBar: true });
+            // links that leave the app open in the normal browser, not a bare Electron window
+            win.webContents.setWindowOpenHandler(({ url }) => {
+              if (/^https?:/.test(url)) shell.openExternal(url);
+              return { action: url.startsWith('app:') ? 'allow' : 'deny' };
+            });
+            win.webContents.on('will-navigate', (e, url) => {
+              if (/^https?:/.test(url)) { e.preventDefault(); shell.openExternal(url); }
+            });
+            win.loadURL('app://local/');
+          });
+          app.on('window-all-closed', () => app.quit());
+          JS
+          node -e '
+            const e = process.env, ico = e.ICON === "true" ? { icon: "build/icon.png" } : {};
+            require("fs").writeFileSync("package.json", JSON.stringify({
+              name: "app", version: e.VER, description: e.NAME, author: "repo2apk", main: "main.js",
+              r2a: { name: e.NAME, appId: e.ID, bg: e.BG },
+              build: { appId: e.ID, productName: e.NAME, artifactName: "app.${ext}", files: ["main.js", "www/**"],
+                win: { target: "nsis", ...ico }, nsis: { oneClick: false, allowToChangeInstallationDirectory: true },
+                mac: { target: { target: "dmg", arch: ["universal"] }, category: "public.app-category.productivity", ...ico },
+                linux: { target: "AppImage", category: "Utility", ...ico } } }))'
+          npm i -D electron@33 electron-builder@25
+          case "$T" in windows) F=--win; X=exe;; mac) F=--mac; X=dmg;; linux) F=--linux; X=AppImage;; esac
+          npx electron-builder $F --publish never
+          cp "dist/app.$X" "../out/${REPO#*/}-$T.$X"
+          printf '### %s ที่ได้\n- ขนาด: %s เวอร์ชัน %s\n\n' "$T" "$(du -h "dist/app.$X" | cut -f1)" "$VER" > ../out/facts-$T.md
+      - name: iOS (unsigned .ipa + Xcode project)
+        if: matrix.t == 'ios'
+        run: |
+          N=${REPO#*/}
+          mkdir out app && mv site/www app/www && cd app
+          npm init -y >/dev/null
+          npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7 @capacitor/assets@3
+          npx cap init "$NAME" "$ID" --web-dir www
+          npx cap add ios
+          if [ "$ICON" = true ]; then
+            mkdir assets && cp ../site/icon.png assets/logo.png
+            npx @capacitor/assets generate --ios --iconBackgroundColor "$BG" --splashBackgroundColor "$BG" --splashBackgroundColorDark "$BG"
+          fi
+          sed -i '' -E "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $VER;/; s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = $GITHUB_RUN_NUMBER;/" ios/App/App.xcodeproj/project.pbxproj
+          npx cap sync ios
+          zip -qr "../out/$N-ios-xcode.zip" . -x 'node_modules/*' 'ios/App/Pods/*' 'ios/App/build/*'
+          if [ -d ios/App/App.xcworkspace ]; then P=(-workspace ios/App/App.xcworkspace); else P=(-project ios/App/App.xcodeproj); fi
+          IPA=no
+          if xcodebuild "${P[@]}" -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+               -archivePath "$RUNNER_TEMP/App.xcarchive" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet; then
+            mkdir -p "$RUNNER_TEMP/ipa/Payload" && cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/ipa/Payload/"
+            (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/out/$N-ios-unsigned.ipa" Payload) && IPA=yes
+          fi
+          {
+            echo "### iOS ที่ได้"
+            if [ $IPA = yes ]; then
+              echo "- \`.ipa\` ยังไม่เซ็น ($(du -h "../out/$N-ios-unsigned.ipa" | cut -f1)): ติดตั้งด้วย Sideloadly หรือ AltStore แล้วล็อกอิน Apple ID ของคุณ"
+            else
+              echo "- สร้าง .ipa ไม่สำเร็จ แต่โปรเจกต์ Xcode ยังใช้ได้"
+            fi
+            echo "- โปรเจกต์ Xcode: แตก zip บน Mac รัน \`npm install && npx cap sync ios\` แล้วเปิด ios/App ใน Xcode เพื่อเซ็นและอัปขึ้น App Store"
+            echo
+          } > ../out/facts-ios.md
+      - uses: actions/upload-artifact@v4
+        with: { name: "out-${{ matrix.t }}", path: out }
+
+  publish:
+    needs: [prepare, android, native]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: site, path: site }
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with: { pattern: 'out-*', path: out, merge-multiple: true }
+      - name: Release
+        run: |
+          shopt -s nullglob
+          bins=(out/*.apk out/*.aab out/*.exe out/*.dmg out/*.AppImage out/*.ipa out/*.zip)
+          if [ ${#bins[@]} -eq 0 ]; then
+            gh release create "apk-$JOB" --title FAILED --notes "Build ล้มเหลว ดู log: $RUN_URL"; exit 0
+          fi
+          {
+            cat site/report.md out/facts-*.md
+            [ "${{ needs.android.result }}" = failure ] && echo "- Android สร้างไม่สำเร็จ ดู log: $RUN_URL"
+            [ "${{ needs.native.result }}" = failure ] && echo "- Windows/macOS/Linux/iOS บางตัวสร้างไม่สำเร็จ ดู log: $RUN_URL"
+            true
+          } > notes.md
+          gh release create "apk-$JOB" "${bins[@]}" --title "${{ needs.prepare.outputs.name }}" --notes-file notes.md
+          gh release list --limit 200 --json tagName,createdAt -q 'sort_by(.createdAt)|reverse|.[20:]|.[].tagName' | xargs -r -n1 gh release delete --cleanup-tag --yes || true

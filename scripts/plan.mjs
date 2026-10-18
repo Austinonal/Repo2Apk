@@ -1,5 +1,6 @@
 // Builds the preview plan from GitHub's public API. No clone, no Actions, no token.
-import { TEXT, TEXT_MAX, baseFix, baseItem, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, BUILD_ITEM, wrapItems, TRUNC } from './rules.mjs';
+import { TEXT, TEXT_MAX, baseFix, baseItem, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, BUILD_ITEM, wrapItems, TRUNC,
+  manifestPath, iconCandidates, iconItem, appLook, lookItem } from './rules.mjs';
 
 const get = async (url, json) => {
   const r = await fetch(url);
@@ -39,8 +40,14 @@ export async function plan(owner, name, wanted, targets = ['android']) {
     for (const f of kept.slice(0, 60)) { const t = await raw(pre + f); if (baseFix(t, name) !== t) fixed.push(f); }
     if (fixed.length) items.push(baseItem(name, fixed.sort()));
     if (kept.length > 60) items.push({ ...TRUNC, what: `ตรวจ path ได้แค่ 60 จาก ${kept.length} ไฟล์ข้อความ` });
-    if (files.includes(pre + 'index.html')) items.push(...htmlFix(await raw(pre + 'index.html')).items);
-    else {
+    if (files.includes(pre + 'index.html')) {
+      const html = await raw(pre + 'index.html'), mp = manifestPath(html);
+      const manifest = mp && files.includes(pre + mp) ? await raw(pre + mp).then(JSON.parse).catch(() => ({})) : {};
+      items.push(...htmlFix(html).items);
+      items.push(iconItem(iconCandidates(html, manifest, mp).find(p => files.includes(pre + p))));
+      const look = lookItem(appLook(manifest), mp);
+      if (look) items.push(look);
+    } else {
       const top = files.filter(f => f.startsWith(pre)).map(f => f.slice(pre.length));
       items.push(noIndex(top.find(f => !f.includes('/') && f.endsWith('.html'))));
     }

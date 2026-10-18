@@ -3,10 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { TEXT, TEXT_MAX, baseFix, baseItem, BUILD_DIRS, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, report, BUILD_ITEM, wrapItems } from './rules.mjs';
+import { TEXT, TEXT_MAX, baseFix, baseItem, BUILD_DIRS, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, report, BUILD_ITEM, wrapItems,
+  manifestPath, iconCandidates, iconItem, appLook, lookItem } from './rules.mjs';
 
 const SRC = 'src', OUT = 'www';
-const repoName = process.env.REPO_NAME || 'app';
+const [repoOwner, repoName] = (process.env.REPO || 'me/app').split('/');
 const items = [], removed = [];
 const SKIP = (process.env.SKIP || '').split(',').filter(Boolean);
 const T = (process.env.TARGETS || 'android').split(',').filter(Boolean);
@@ -73,15 +74,39 @@ if (has(idx)) {
     : `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${repoName}</title><body style="font-family:sans-serif;padding:24px"><h2>${repoName}</h2><p>repo นี้ไม่มีหน้าเว็บ (ไม่เจอ index.html)</p>`);
   items.push(noIndex(other));
 }
+// 3c. icon + PWA manifest -> ./icon.png (1024px) and app name / background colour
+const html = fs.readFileSync(idx, 'utf8'), mp = manifestPath(html);
+let manifest = {};
+try { if (mp) manifest = JSON.parse(fs.readFileSync(path.join(OUT, mp), 'utf8')); } catch {}
+const look = appLook(manifest);
+const iconSrc = iconCandidates(html, manifest, mp).find(p => has(path.join(OUT, p)));
+let icon = false;
+if (iconSrc) {
+  try {
+    const { default: sharp } = await import('sharp');
+    await sharp(path.join(OUT, iconSrc), { density: 300 }).resize(1024, 1024, { fit: 'contain', background: '#0000' }).png().toFile('icon.png');
+    icon = true;
+    items.push(iconItem(iconSrc));
+  } catch (e) {
+    items.push({ kind: 'warn', what: `อ่านไฟล์ไอคอน \`${iconSrc}\` ไม่ได้ (${e.message.slice(0, 80)})`, effect: 'แอปจะใช้ไอคอนเริ่มต้นแทน' });
+  }
+} else items.push(iconItem());
+const lk = lookItem(look, mp);
+if (lk) items.push(lk);
 items.push(...wrapItems(T));
 
-// 4. app name / id for the next step
-const title = (fs.readFileSync(idx, 'utf8').match(/<title>([^<]+)/i) || [])[1] || '';
-const name = (process.env.APP_NAME || title || repoName).replace(/[^\p{L}\p{N} \-]/gu, '').trim().slice(0, 30) || repoName;
-const id = 'com.repo2apk.a' + (repoName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app');
-const native = T.filter(t => t !== 'android').map(t => ({ t, os: t === 'windows' ? 'windows-latest' : 'macos-latest' }));
-fs.appendFileSync(process.env.GITHUB_OUTPUT || '/dev/null',
-  `name=${name}\nid=${id}\nandroid=${T.includes('android')}\nnative=${native.length > 0}\nmatrix=${JSON.stringify({ include: native })}\n`);
+// 4. app name / id / version for the next steps
+const title = (html.match(/<title>([^<]+)/i) || [])[1] || '';
+const name = (process.env.APP_NAME || look.name || title || repoName).replace(/[^\p{L}\p{N} \-]/gu, '').trim().slice(0, 30) || repoName;
+const seg = s => (s.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app').replace(/^(?=\d)/, 'a');
+const id = process.env.APP_ID || ['com.repo2apk', seg(repoOwner), seg(repoName)].join('.');
+const version = ((process.env.APP_VERSION || pkg.version || '1.0.0').match(/^\d+(\.\d+){0,2}/) || ['1.0.0'])[0]
+  .split('.').concat('0', '0').slice(0, 3).join('.');
+const OS = { windows: 'windows-latest', mac: 'macos-latest', ios: 'macos-latest', linux: 'ubuntu-latest' };
+const native = T.filter(t => OS[t]).map(t => ({ t, os: OS[t] }));
+fs.appendFileSync(process.env.GITHUB_OUTPUT || '/dev/null', [`name=${name}`, `id=${id}`, `version=${version}`,
+  `bg=${look.bg}`, `icon=${icon}`, `android=${T.includes('android')}`, `native=${native.length > 0}`,
+  `matrix=${JSON.stringify({ include: native })}`, ''].join('\n'));
 
 fs.writeFileSync('report.md', '## รายงานการแปลง\n\n' + report(items));
 assert(has(idx), 'www/index.html must exist');

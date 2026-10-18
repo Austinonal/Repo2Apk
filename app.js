@@ -1,52 +1,74 @@
 import { plan } from './scripts/plan.mjs';
-import { rule, cutItems, dirItem, WRAP, report, TITLES } from './scripts/rules.mjs';
+import { rule, cutItems, dirItem, WRAP, iconItem, report, TITLES } from './scripts/rules.mjs';
 
-const $ = id => document.getElementById(id), L = localStorage;
+const $ = id => document.getElementById(id);
 const say = t => { $('status').textContent = t; };
 const kindOf = Object.fromEntries(Object.entries(TITLES).map(([k, v]) => [v, k]));
+const store = (k, v) => { try { if (v === undefined) return localStorage[k] || ''; localStorage[k] = v; } catch { return ''; } };
+const el = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text ? { textContent: text } : {});
+const icon = (id, cls = 'ic') => {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), u = document.createElementNS(s.namespaceURI, 'use');
+  s.setAttribute('class', cls); s.setAttribute('aria-hidden', 'true'); u.setAttribute('href', '#i-' + id); s.append(u);
+  return s;
+};
 let pending;
 
-$('conv').value = L.conv || (location.hostname.endsWith('.github.io')
+// ---------- theme + setup dialog ----------
+$('theme').onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next; store('theme', next);
+};
+$('conv').value = store('conv') || (location.hostname.endsWith('.github.io')
   ? `${location.hostname.split('.')[0]}/${location.pathname.split('/')[1]}` : '');
-$('tok').value = L.tok || '';
+$('tok').value = store('tok');
+const ready = () => { $('tok-dot').hidden = !($('conv').value.trim() && $('tok').value.trim()); };
+ready();
+$('open-setup').onclick = () => $('setup').showModal();
+$('setup').addEventListener('close', () => {
+  if ($('setup').returnValue === 'save') { store('conv', $('conv').value.trim()); store('tok', $('tok').value.trim()); }
+  ready();
+});
 
-// markdown subset (### heading, - item, "  - " effect line) -> DOM, text only
-function inline(el, text) {
-  text.split('`').forEach((s, i) => {
-    if (i % 2) { const c = document.createElement('code'); c.textContent = s; el.append(c); }
-    else el.append(s);
-  });
+// ---------- markdown subset (### heading, - item, "  - " effect line) -> DOM, text only ----------
+function inline(node, text) {
+  text.split('`').forEach((s, i) => node.append(i % 2 ? el('code', '', s) : s));
 }
 function md(text) {
-  const box = document.createElement('div');
+  const box = el('div');
   let ul, li;
   for (const line of text.split('\n')) {
     if (line.startsWith('### ')) {
-      const h = document.createElement('h3'); h.textContent = line.slice(4); box.append(h);
-      ul = box.appendChild(document.createElement('ul'));
-      ul.className = kindOf[line.slice(4)] || 'plain';
+      const kind = kindOf[line.slice(4)] || 'plain', h = el('h4', 'group-h ' + kind);
+      h.append(el('span', 'tag', line.slice(4)));
+      box.append(h);
+      ul = box.appendChild(el('ul', kind));
     } else if (line.startsWith('- ')) {
-      ul ??= box.appendChild(Object.assign(document.createElement('ul'), { className: 'plain' }));
-      li = ul.appendChild(document.createElement('li'));
+      ul ??= box.appendChild(el('ul', 'plain'));
+      li = ul.appendChild(el('li'));
       inline(li, line.slice(2));
     } else if (line.startsWith('  - ') && li) {
-      const s = document.createElement('span'); s.className = 'effect'; inline(s, line.slice(4)); li.append(s);
+      const s = el('span', 'effect'); inline(s, line.slice(4)); li.append(s);
     } else if (line.trim() && !line.startsWith('## ')) {
-      const p = document.createElement('p'); inline(p, line); box.append(p); ul = li = null;
+      const p = el('p'); inline(p, line); box.append(p); ul = li = null;
     }
   }
+  box.querySelectorAll('.group-h').forEach(h => h.append(el('span', 'count', String(h.nextElementSibling.children.length))));
   return box;
 }
 
+// ---------- flow state ----------
 // 0 = plan, 1 = confirm, 2 = build, 3 = all done, -1 = nothing yet
 function setStep(n) {
-  [...$('rail').children].forEach((el, i) => {
-    el.classList.toggle('done', i < n);
-    el.classList.toggle('now', i === n);
+  [...$('rail').children].forEach((li, i) => {
+    li.classList.toggle('done', i < n);
+    li.classList.toggle('now', i === n);
+    if (i === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
   });
 }
 const busy = on => {
   $('plan-btn').disabled = $('confirm').disabled = on;
+  $('plan-btn').setAttribute('aria-busy', on);
   $('bar').hidden = !on;
 };
 function reset() {
@@ -54,39 +76,46 @@ function reset() {
   $('sample').hidden = false;
   setStep(-1); say(''); busy(false);
 }
+const fieldErr = t => { $('form-err').textContent = t || ''; $('form-err').hidden = !t; };
 
 // sample plan so a first-time visitor sees what the tool does
 $('sample-body').replaceChildren(md(report([
   ...cutItems(['.git', 'node_modules', '.env', 'README.md'].map(p => [p, rule(p)])),
-  dirItem('docs'), WRAP,
+  dirItem('docs'), iconItem('icons/icon-512.png'), WRAP,
 ])));
 
 const targets = () => [...document.querySelectorAll('.targets input:checked')].map(c => c.value);
 const parse = s => s.trim().match(/^(?:https?:\/\/)?(?:github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^\s?#]+))?\/?$/);
+const ID_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, VER_RE = /^\d+(\.\d+){0,2}$/;
 
+$('url').addEventListener('input', () => fieldErr(''));
 $('form').onsubmit = async e => {
   e.preventDefault();
-  const u = parse($('url').value);
-  if (!u) return say('ลิงก์ไม่ถูกต้อง ลองแบบ github.com/ชื่อคุณ/โปรเจกต์');
-  if (!targets().length) return say('เลือกอย่างน้อยหนึ่งปลายทาง');
+  const u = parse($('url').value), id = $('appid').value.trim(), ver = $('appver').value.trim();
+  if (!u) { $('url').focus(); return fieldErr('ลิงก์ไม่ถูกต้อง ลองแบบ github.com/ชื่อคุณ/โปรเจกต์'); }
+  if (!targets().length) return fieldErr('เลือกอย่างน้อยหนึ่งแพลตฟอร์ม');
+  if (id && !ID_RE.test(id)) { $('form').querySelector('.more').open = true; $('appid').focus(); return fieldErr('App ID ต้องเป็นตัวพิมพ์เล็ก คั่นด้วยจุดอย่างน้อย 2 ส่วน เช่น com.me.app'); }
+  if (ver && !VER_RE.test(ver)) { $('form').querySelector('.more').open = true; $('appver').focus(); return fieldErr('เวอร์ชันต้องเป็นตัวเลข เช่น 1.2.0'); }
+  fieldErr('');
   reset(); setStep(0); busy(true); say('กำลังอ่าน repo...');
   try {
     const p = await plan(u[1], u[2], u[3], targets());
-    pending = { repo: `${u[1]}/${u[2]}`, branch: u[3] || '', targets: targets().join(',') };
-    const head = document.createElement('p');
+    pending = { repo: `${u[1]}/${u[2]}`, branch: u[3] || '', targets: targets().join(','), id, version: ver };
+    const head = el('p', 'plan-meta');
     inline(head, `อ่าน \`${pending.repo}\` สาขา \`${p.branch}\` แล้ว มี ${p.count} ไฟล์ นี่คือสิ่งที่จะเกิดขึ้น`);
     $('plan-body').replaceChildren(head, md(report(p.items)));
     const cuts = p.items.filter(i => i.kind === 'cut');
     $('plan-body').querySelectorAll('ul.cut > li').forEach((li, i) => {
-      const l = document.createElement('label'), c = document.createElement('input');
-      l.className = 'keep'; c.type = 'checkbox'; c.dataset.id = cuts[i].id;
-      l.append(c, ' เก็บไว้ ไม่ตัด'); li.append(l);
+      const l = el('label', 'keep'), c = el('input');
+      c.type = 'checkbox'; c.dataset.id = cuts[i].id;
+      l.append(c, el('span', '', 'เก็บไว้ ไม่ตัด')); li.append(l);
     });
-    $("sample").hidden = true;
-    $('plan').hidden = false; setStep(1); say('');
+    $('sample').hidden = true;
+    $('plan').hidden = false; setStep(1); say('ตรวจแผนแล้วกดยืนยัน');
+    if (matchMedia('(max-width: 959px)').matches) $('plan').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   } catch (err) {
     reset();
-    say({ 404: 'ไม่เจอ repo นี้ (เป็น private หรือพิมพ์ผิด?)', 403: 'เรียก GitHub เกินโควตา รอสักครู่แล้วลองใหม่' }[err.message]
+    fieldErr({ 404: 'ไม่เจอ repo นี้ (เป็น private หรือพิมพ์ผิด?)', 403: 'เรียก GitHub เกินโควตา รอสักครู่แล้วลองใหม่' }[err.message]
       || 'อ่าน repo ไม่ได้: ' + err.message);
   }
   busy(false);
@@ -96,8 +125,8 @@ $('cancel').onclick = reset;
 
 $('confirm').onclick = async () => {
   const conv = $('conv').value.trim(), tok = $('tok').value.trim();
-  if (!conv || !tok) { $('setup').open = true; $('tok').focus(); return say('ใส่ repo ของเว็บนี้กับ token ในช่อง "ตั้งค่า" ก่อน แล้วกดยืนยันอีกครั้ง'); }
-  L.conv = conv; L.tok = tok;
+  if (!conv || !tok) { $('setup').showModal(); $(conv ? 'tok' : 'conv').focus(); return say('ใส่ repo ของเว็บนี้กับ token ก่อน แล้วกดยืนยันอีกครั้ง'); }
+  store('conv', conv); store('tok', tok); ready();
   const gh = (p, o = {}) => fetch('https://api.github.com' + p, { ...o, headers: { Authorization: 'Bearer ' + tok, Accept: 'application/vnd.github+json' } });
   const job = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   busy(true); setStep(2); say('กำลังสั่งงาน...');
@@ -106,43 +135,58 @@ $('confirm').onclick = async () => {
     if (!r.ok) throw new Error('เข้า repo ของเว็บนี้ไม่ได้ (เช็คชื่อ repo / token)');
     const ref = (await r.json()).default_branch;
     const d = await gh(`/repos/${conv}/actions/workflows/build.yml/dispatches`, { method: 'POST',
-      body: JSON.stringify({ ref, inputs: { repo: pending.repo, branch: pending.branch, job, targets: pending.targets, name: $('appname').value.trim(),
+      body: JSON.stringify({ ref, inputs: { repo: pending.repo, branch: pending.branch, job, targets: pending.targets,
+        name: $('appname').value.trim(), id: pending.id, version: pending.version,
         skip: [...document.querySelectorAll('.keep input:checked')].map(c => c.dataset.id).join(',') } }) });
+    if (d.status === 404) throw new Error('ไม่เจอ workflow build.yml ใน repo ของเว็บนี้ (ต้องอยู่ที่ .github/workflows/build.yml)');
     if (!d.ok) throw new Error('สั่งงานไม่สำเร็จ (' + d.status + ') เช็คสิทธิ์ token');
     const t0 = Date.now();
     for (;;) {
       await new Promise(f => setTimeout(f, globalThis.POLL ?? 8000));
-      say(`กำลังสร้างไฟล์... ${Math.round((Date.now() - t0) / 1000)} วินาที (ปกติ 3-6 นาที)`);
+      const s = Math.round((Date.now() - t0) / 1000);
+      say(`กำลังสร้างไฟล์... ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} (ปกติ 3-10 นาที)`);
       const x = await gh(`/repos/${conv}/releases/tags/apk-${job}`);
       if (x.ok) return finish(await x.json());
-      if (Date.now() - t0 > 30 * 60e3) throw new Error('นานเกินไป ไปดูแท็บ Actions ใน repo');
+      if (Date.now() - t0 > 45 * 60e3) throw new Error('นานเกินไป ไปดูแท็บ Actions ใน repo');
     }
   } catch (err) { say(err.message); setStep(1); }
   finally { busy(false); }
 };
 
+// ---------- result: one card per downloadable file ----------
+const KINDS = [
+  [/-android-debug\.apk$/, 'android', 'Android', 'debug APK ติดตั้งลองได้เลย'],
+  [/\.apk$/, 'android', 'Android', 'APK ที่เซ็นแล้ว'],
+  [/\.aab$/, 'android', 'Android', 'AAB สำหรับ Play Store'],
+  [/\.exe$/, 'windows', 'Windows', 'ตัวติดตั้ง .exe'],
+  [/\.dmg$/, 'mac', 'macOS', 'Universal .dmg'],
+  [/\.AppImage$/, 'linux', 'Linux', 'AppImage (chmod +x แล้วรัน)'],
+  [/\.ipa$/, 'ios', 'iOS', '.ipa ติดตั้งผ่าน Sideloadly / AltStore'],
+  [/\.zip$/, 'ios', 'iOS', 'โปรเจกต์ Xcode'],
+];
+const mb = n => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
+
 function finish(rel) {
-  const a = rel.assets.find(x => !x.name.startsWith('facts')), box = $('result');
+  const files = rel.assets.filter(x => !x.name.startsWith('facts')), box = $('result');
   $('plan').hidden = true; box.hidden = false;
   box.replaceChildren();
-  setStep(a ? 3 : 2); say(a ? 'เสร็จแล้ว' : 'สร้างไม่สำเร็จ');
-  const h = document.createElement('h2'); h.textContent = a ? 'ไฟล์พร้อมแล้ว' : 'สร้างไม่สำเร็จ'; box.append(h);
-  if (a) {
-    const row = document.createElement('div'); row.className = 'actions';
-    const names = { apk: 'Android (.apk)', exe: 'Windows (.exe)', dmg: 'macOS (.dmg)', zip: 'iOS (โปรเจกต์ Xcode)' };
-    for (const x of rel.assets) {
-      const link = document.createElement('a');
-      link.className = 'btn primary'; link.href = x.browser_download_url;
-      link.textContent = 'ดาวน์โหลด ' + (names[x.name.split('.').pop()] || x.name);
-      row.append(link);
+  setStep(files.length ? 3 : 2); say(files.length ? 'เสร็จแล้ว' : 'สร้างไม่สำเร็จ');
+  const h = el('h3', 'stage-h', files.length ? 'ไฟล์พร้อมแล้ว' : 'สร้างไม่สำเร็จ'); box.append(h);
+  if (files.length) {
+    const grid = el('div', 'downloads');
+    for (const x of files) {
+      const [, os, label, note] = KINDS.find(([re]) => re.test(x.name)) || [0, 'download', x.name.split('.').pop(), ''];
+      const a = el('a', 'dl'); a.href = x.browser_download_url;
+      const t = el('span', 'dl-text');
+      t.append(el('b', '', label), el('span', '', note), el('small', '', `${x.name} · ${mb(x.size)}`));
+      a.append(icon(os, 'ic lg'), t, icon('download', 'ic dl-go'));
+      grid.append(a);
     }
-    box.append(row);
-    const n = document.createElement('p'); n.className = 'note';
-    n.textContent = 'รายงานด้านล่างคือสิ่งที่เกิดขึ้นจริง ถ้าไม่ตรงกับแผน บอกได้เลย';
-    box.append(n);
+    box.append(grid, el('p', 'note', 'รายงานด้านล่างคือสิ่งที่เกิดขึ้นจริง ถ้าไม่ตรงกับแผน บอกได้เลย'));
   } else {
     const url = (rel.body.match(/https?:\/\/\S+/) || [])[0];
-    if (url) { const l = document.createElement('a'); l.className = 'btn'; l.href = url; l.textContent = 'ดู log ว่าพังตรงไหน'; box.append(l); }
+    if (url) { const l = el('a', 'btn ghost', 'ดู log ว่าพังตรงไหน'); l.href = url; box.append(l); }
   }
-  box.append(md(rel.body));
+  const rep = el('div', 'report'); rep.append(md(rel.body)); box.append(rep);
+  h.tabIndex = -1; h.focus();
 }
