@@ -1,4 +1,5 @@
 import { plan } from './scripts/plan.mjs';
+import { WORKER_URL } from './config.js';
 import { rule, cutItems, dirItem, WRAP, iconItem, report, TITLES, grade, AREAS } from './scripts/rules.mjs';
 
 const $ = id => document.getElementById(id);
@@ -25,6 +26,7 @@ $('tok').value = store('tok');
 const ready = () => { $('tok-dot').hidden = !($('conv').value.trim() && $('tok').value.trim()); };
 ready();
 $('open-setup').onclick = () => $('setup').showModal();
+$('open-setup').hidden = !!WORKER_URL;
 $('setup').addEventListener('close', () => {
   if ($('setup').returnValue === 'save') { store('conv', $('conv').value.trim()); store('tok', $('tok').value.trim()); }
   ready();
@@ -153,27 +155,33 @@ $('cancel').onclick = reset;
 
 $('confirm').onclick = async () => {
   const conv = $('conv').value.trim(), tok = $('tok').value.trim();
-  if (!conv || !tok) { $('setup').showModal(); $(conv ? 'tok' : 'conv').focus(); return say('ใส่ repo ของเว็บนี้กับ token ก่อน แล้วกดยืนยันอีกครั้ง'); }
-  store('conv', conv); store('tok', tok); ready();
+  if (!WORKER_URL && (!conv || !tok)) { $('setup').showModal(); $(conv ? 'tok' : 'conv').focus(); return say('ใส่ repo ของเว็บนี้กับ token ก่อน แล้วกดยืนยันอีกครั้ง'); }
+  if (!WORKER_URL) { store('conv', conv); store('tok', tok); ready(); }
   const gh = (p, o = {}) => fetch('https://api.github.com' + p, { ...o, headers: { Authorization: 'Bearer ' + tok, Accept: 'application/vnd.github+json' } });
   const job = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const inputs = { repo: pending.repo, branch: pending.branch, job, targets: pending.targets,
+    name: $('appname').value.trim(), id: pending.id, version: pending.version,
+    skip: [...document.querySelectorAll('.keep input:checked')].map(c => c.dataset.id).join(',') };
   busy(true); setStep(2); say('กำลังสั่งงาน...');
   try {
-    const r = await gh(`/repos/${conv}`);
-    if (!r.ok) throw new Error('เข้า repo ของเว็บนี้ไม่ได้ (เช็คชื่อ repo / token)');
-    const ref = (await r.json()).default_branch;
-    const d = await gh(`/repos/${conv}/actions/workflows/build.yml/dispatches`, { method: 'POST',
-      body: JSON.stringify({ ref, inputs: { repo: pending.repo, branch: pending.branch, job, targets: pending.targets,
-        name: $('appname').value.trim(), id: pending.id, version: pending.version,
-        skip: [...document.querySelectorAll('.keep input:checked')].map(c => c.dataset.id).join(',') } }) });
-    if (d.status === 404) throw new Error('ไม่เจอ workflow build.yml ใน repo ของเว็บนี้ (ต้องอยู่ที่ .github/workflows/build.yml)');
-    if (!d.ok) throw new Error('สั่งงานไม่สำเร็จ (' + d.status + ') เช็คสิทธิ์ token');
+    if (WORKER_URL) {
+      const d = await fetch(WORKER_URL + '/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(inputs) });
+      if (d.status === 429) throw new Error('ตอนนี้มีคนแปลงอยู่เยอะ รอสักครู่แล้วกดยืนยันอีกครั้ง');
+      if (!d.ok) throw new Error('สั่งงานไม่สำเร็จ (' + d.status + ') ลองใหม่อีกครั้ง');
+    } else {
+      const r = await gh(`/repos/${conv}`);
+      if (!r.ok) throw new Error('เข้า repo ของเว็บนี้ไม่ได้ (เช็คชื่อ repo / token)');
+      const ref = (await r.json()).default_branch;
+      const d = await gh(`/repos/${conv}/actions/workflows/build.yml/dispatches`, { method: 'POST', body: JSON.stringify({ ref, inputs }) });
+      if (d.status === 404) throw new Error('ไม่เจอ workflow build.yml ใน repo ของเว็บนี้ (ต้องอยู่ที่ .github/workflows/build.yml)');
+      if (!d.ok) throw new Error('สั่งงานไม่สำเร็จ (' + d.status + ') เช็คสิทธิ์ token');
+    }
     const t0 = Date.now();
     for (;;) {
       await new Promise(f => setTimeout(f, globalThis.POLL ?? 8000));
       const s = Math.round((Date.now() - t0) / 1000);
       say(`กำลังสร้างไฟล์... ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} (ปกติ 3-10 นาที)`);
-      const x = await gh(`/repos/${conv}/releases/tags/apk-${job}`);
+      const x = await (WORKER_URL ? fetch(`${WORKER_URL}/release/${job}`) : gh(`/repos/${conv}/releases/tags/apk-${job}`));
       if (x.ok) return finish(await x.json());
       if (Date.now() - t0 > 45 * 60e3) throw new Error('นานเกินไป ไปดูแท็บ Actions ใน repo');
     }

@@ -1,0 +1,8 @@
+name = "repo2app"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+CONV_REPO = "Austinonal/Repo2Apk"   # repo that holds .github/workflows/build.yml
+ALLOW_ORIGIN = "https://austinonal.github.io"  # the exact origin of the website (no path, no trailing slash)
+MAX_RUNNING = "3"
