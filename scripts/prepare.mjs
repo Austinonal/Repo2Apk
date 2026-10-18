@@ -3,9 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import assert from 'assert';
 import { execSync } from 'child_process';
+import { L, setLang } from './lang.mjs';
 import { TEXT, TEXT_MAX, baseFix, baseItem, BUILD_DIRS, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, report, BUILD_ITEM, wrapItems,
   manifestPath, iconCandidates, iconItem, appLook, lookItem } from './rules.mjs';
 
+setLang(process.env.APP_LANG);
 const SRC = 'src', OUT = 'www';
 const [repoOwner, repoName] = (process.env.REPO || 'me/app').split('/');
 const items = [], removed = [];
@@ -29,9 +31,10 @@ if (pkg.scripts?.build) {
   const d = BUILD_DIRS.map(x => find(x, 2)).find(Boolean);
   if (d) {
     web = path.join(SRC, d);
-    items.push({ ...BUILD_ITEM, what: `รัน \`${pm} run build\` แล้วใช้โฟลเดอร์ \`${d}/\`` });
-  } else items.push({ kind: 'warn', what: 'build ผ่านแต่ไม่เจอ index.html ใน dist / build / out / public',
-    effect: 'จึงใช้ทั้ง repo แทน ซึ่งมักเป็นโค้ดต้นฉบับที่เปิดตรงๆ ไม่ได้ แอปอาจขึ้นหน้าว่าง (Next.js ต้องตั้ง `output: \'export\'` ใน next.config ก่อน)' });
+    items.push({ ...BUILD_ITEM, what: L(`รัน \`${pm} run build\` แล้วใช้โฟลเดอร์ \`${d}/\``, `Run \`${pm} run build\` and use the folder \`${d}/\``) });
+  } else items.push({ kind: 'warn', what: L('build ผ่านแต่ไม่เจอ index.html ใน dist / build / out / public', 'The build passed but no index.html was found in dist / build / out / public'),
+    effect: L('จึงใช้ทั้ง repo แทน ซึ่งมักเป็นโค้ดต้นฉบับที่เปิดตรงๆ ไม่ได้ แอปอาจขึ้นหน้าว่าง (Next.js ต้องตั้ง `output: \'export\'` ใน next.config ก่อน)',
+      'The whole repo is used instead, which is usually source code that cannot run directly, so the app may be blank (Next.js needs `output: \'export\'` in next.config first)') });
 } else {
   const d = entryDir(p => has(path.join(SRC, p)));
   if (d) { web = path.join(SRC, d); items.push(dirItem(d)); }
@@ -77,7 +80,7 @@ if (has(idx)) {
   const other = fs.readdirSync(OUT).find(f => f.endsWith('.html'));
   fs.writeFileSync(idx, other
     ? `<!doctype html><meta charset="utf-8"><script>location.replace(${JSON.stringify(encodeURI(other))})</script>`
-    : `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${repoName}</title><body style="font-family:sans-serif;padding:24px"><h2>${repoName}</h2><p>repo นี้ไม่มีหน้าเว็บ (ไม่เจอ index.html)</p>`);
+    : `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${repoName}</title><body style="font-family:sans-serif;padding:24px"><h2>${repoName}</h2><p>${L('repo นี้ไม่มีหน้าเว็บ (ไม่เจอ index.html)', 'This repo has no web page (index.html not found)')}</p>`);
   items.push(noIndex(other));
 }
 // 3c. icon + PWA manifest -> ./icon.png (1024px) and app name / background colour
@@ -94,7 +97,7 @@ if (iconSrc) {
     icon = true;
     items.push(iconItem(iconSrc));
   } catch (e) {
-    items.push({ kind: 'warn', what: `อ่านไฟล์ไอคอน \`${iconSrc}\` ไม่ได้ (${e.message.slice(0, 80)})`, effect: 'แอปจะใช้ไอคอนเริ่มต้นแทน' });
+    items.push({ kind: 'warn', what: L(`อ่านไฟล์ไอคอน \`${iconSrc}\` ไม่ได้ (${e.message.slice(0, 80)})`, `Could not read the icon \`${iconSrc}\` (${e.message.slice(0, 80)})`), effect: L('แอปจะใช้ไอคอนเริ่มต้นแทน', 'The app will use the default icon instead') });
   }
 } else items.push(iconItem());
 const lk = lookItem(look, mp);
@@ -114,5 +117,5 @@ fs.appendFileSync(process.env.GITHUB_OUTPUT || '/dev/null', [`name=${name}`, `id
   `bg=${look.bg}`, `icon=${icon}`, `android=${T.includes('android')}`, `native=${native.length > 0}`,
   `matrix=${JSON.stringify({ include: native })}`, ''].join('\n'));
 
-fs.writeFileSync('report.md', '## รายงานการแปลง\n\n' + report(items));
+fs.writeFileSync('report.md', `## ${L('รายงานการแปลง', 'Conversion report')}\n\n` + report(items));
 assert(has(idx), 'www/index.html must exist');

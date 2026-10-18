@@ -1,6 +1,7 @@
 // Builds the preview plan from GitHub's public API. No clone, no Actions, no token.
 import { TEXT, TEXT_MAX, baseFix, baseItem, rule, cutItems, entryDir, dirItem, noIndex, htmlFix, BUILD_ITEM, wrapItems, TRUNC,
   manifestPath, iconCandidates, iconItem, appLook, lookItem } from './rules.mjs';
+import { L } from './lang.mjs';
 
 const get = async (url, json) => {
   const r = await fetch(url);
@@ -39,7 +40,7 @@ export async function plan(owner, name, wanted, targets = ['android']) {
     const fixed = [];
     for (const f of kept.slice(0, 60)) { const t = await raw(pre + f); if (baseFix(t, name) !== t) fixed.push(f); }
     if (fixed.length) items.push(baseItem(name, fixed.sort()));
-    if (kept.length > 60) items.push({ ...TRUNC, what: `ตรวจ path ได้แค่ 60 จาก ${kept.length} ไฟล์ข้อความ` });
+    if (kept.length > 60) items.push({ ...TRUNC, what: L(`ตรวจ path ได้แค่ 60 จาก ${kept.length} ไฟล์ข้อความ`, `Only 60 of ${kept.length} text files were checked for paths`) });
     if (files.includes(pre + 'index.html')) {
       const html = await raw(pre + 'index.html'), mp = manifestPath(html);
       const manifest = mp && files.includes(pre + mp) ? await raw(pre + mp).then(JSON.parse).catch(() => ({})) : {};

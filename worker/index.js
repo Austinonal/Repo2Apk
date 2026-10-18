@@ -4,7 +4,7 @@ const GH = 'https://api.github.com', ACTIVE = ['queued', 'in_progress', 'waiting
 // same rules as the workflow's own checks
 const OK = {
   repo: /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, branch: /^[A-Za-z0-9_./-]*$/, targets: /^(android|ios|windows|mac|linux)(,(android|ios|windows|mac|linux))*$/,
-  skip: /^[a-z,]*$/, id: /^([a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+)?$/, version: /^(\d+(\.\d+){0,2})?$/, job: /^[a-z0-9]{4,24}$/,
+  skip: /^[a-z,]*$/, lang: /^(th|en)$/, id: /^([a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+)?$/, version: /^(\d+(\.\d+){0,2})?$/, job: /^[a-z0-9]{4,24}$/,
 };
 
 export default {
@@ -24,7 +24,7 @@ export default {
 
     if (req.method === 'POST' && pathname === '/build') {
       let b; try { b = await req.json(); } catch { return out(400, { error: 'json' }); }
-      const inputs = { repo: '', branch: '', job: '', targets: '', skip: '', name: '', id: '', version: '', ...b };
+      const inputs = { repo: '', branch: '', job: '', targets: '', skip: '', name: '', id: '', version: '', lang: 'th', ...b };
       for (const [k, re] of Object.entries(OK)) if (typeof inputs[k] !== 'string' || !re.test(inputs[k])) return out(400, { error: 'bad ' + k });
       if (typeof inputs.name !== 'string' || inputs.name.length > 30) return out(400, { error: 'bad name' });
       // stateless abuse guard: refuse when too many builds are already running on our Actions minutes
@@ -32,7 +32,7 @@ export default {
       if ((runs.workflow_runs || []).filter(r => ACTIVE.includes(r.status)).length >= (+env.MAX_RUNNING || 3)) return out(429, { error: 'busy' });
       const info = await (await gh(`/repos/${env.CONV_REPO}`)).json();
       const d = await gh(`/repos/${env.CONV_REPO}/actions/workflows/build.yml/dispatches`, { method: 'POST',
-        body: JSON.stringify({ ref: info.default_branch, inputs: Object.fromEntries(Object.keys({ repo: 1, branch: 1, job: 1, targets: 1, skip: 1, name: 1, id: 1, version: 1 }).map(k => [k, inputs[k]])) }) });
+        body: JSON.stringify({ ref: info.default_branch, inputs: Object.fromEntries(Object.keys({ repo: 1, branch: 1, job: 1, targets: 1, skip: 1, name: 1, id: 1, version: 1, lang: 1 }).map(k => [k, inputs[k]])) }) });
       return out(d.ok ? 200 : d.status, d.ok ? { ok: true } : { error: 'dispatch' });
     }
     return out(404, {});

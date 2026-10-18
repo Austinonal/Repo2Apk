@@ -21,6 +21,8 @@ assert.equal(dispatched.ref, 'main'); assert.equal(dispatched.inputs.targets, 'a
 assert.equal((await call('/build', 'POST', { ...good, repo: 'a/b;rm -rf' })).status, 400);
 assert.equal((await call('/build', 'POST', { ...good, targets: 'android,evil' })).status, 400);
 assert.equal((await call('/build', 'POST', { ...good, name: 'x'.repeat(31) })).status, 400);
+assert.equal((await call('/build', 'POST', { ...good, lang: 'fr' })).status, 400);
+assert.equal((await call('/build', 'POST', { ...good, lang: 'en' })).status, 200); assert.equal(dispatched.inputs.lang, 'en');
 running = 2; assert.equal((await call('/build', 'POST', good)).status, 429);
 assert.equal((await call('/release/abcd')).status, 200);
 assert.equal((await call('/release/zzzz')).status, 404);
