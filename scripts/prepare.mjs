@@ -18,14 +18,20 @@ const has = p => fs.existsSync(p);
 let web = SRC, pkg = {};
 try { pkg = JSON.parse(fs.readFileSync(path.join(SRC, 'package.json'), 'utf8')); } catch {}
 if (pkg.scripts?.build) {
-  sh('npm install --no-audit --no-fund --legacy-peer-deps', SRC);
-  sh('npm run build', SRC);
-  const d = BUILD_DIRS.find(x => has(path.join(SRC, x, 'index.html')));
+  const pm = has(path.join(SRC, 'pnpm-lock.yaml')) ? 'pnpm' : has(path.join(SRC, 'yarn.lock')) ? 'yarn' : 'npm';
+  if (pm !== 'npm') sh('corepack enable', SRC);
+  sh({ npm: 'npm install --no-audit --no-fund --legacy-peer-deps', pnpm: 'pnpm install', yarn: 'yarn install' }[pm], SRC);
+  sh(pm + ' run build', SRC);
+  // Angular puts it in dist/<name>/browser, so look up to 2 levels down
+  const find = (d, depth) => has(path.join(SRC, d, 'index.html')) ? d
+    : depth && fs.statSync(path.join(SRC, d), { throwIfNoEntry: false })?.isDirectory()
+      ? fs.readdirSync(path.join(SRC, d)).map(n => find(path.posix.join(d, n), depth - 1)).find(Boolean) : undefined;
+  const d = BUILD_DIRS.map(x => find(x, 2)).find(Boolean);
   if (d) {
     web = path.join(SRC, d);
-    items.push({ ...BUILD_ITEM, what: `รัน \`npm run build\` แล้วใช้โฟลเดอร์ \`${d}/\`` });
+    items.push({ ...BUILD_ITEM, what: `รัน \`${pm} run build\` แล้วใช้โฟลเดอร์ \`${d}/\`` });
   } else items.push({ kind: 'warn', what: 'build ผ่านแต่ไม่เจอ index.html ใน dist / build / out / public',
-    effect: 'จึงใช้ทั้ง repo แทน ซึ่งมักเป็นโค้ดต้นฉบับที่เปิดตรงๆ ไม่ได้ แอปอาจขึ้นหน้าว่าง' });
+    effect: 'จึงใช้ทั้ง repo แทน ซึ่งมักเป็นโค้ดต้นฉบับที่เปิดตรงๆ ไม่ได้ แอปอาจขึ้นหน้าว่าง (Next.js ต้องตั้ง `output: \'export\'` ใน next.config ก่อน)' });
 } else {
   const d = entryDir(p => has(path.join(SRC, p)));
   if (d) { web = path.join(SRC, d); items.push(dirItem(d)); }

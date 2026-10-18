@@ -54,7 +54,9 @@ jobs:
         run: npm i --no-save --no-audit --no-fund sharp@0.34
       - id: p
         name: Clean up repo into www/ + icon + report
-        run: node scripts/prepare.mjs
+        run: |
+          exec > >(tee -a "$RUNNER_TEMP/log.txt") 2>&1 # keep a copy for the error summary
+          node scripts/prepare.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: site
@@ -63,6 +65,15 @@ jobs:
             report.md
             icon.png
           include-hidden-files: true
+      - name: Error summary
+        if: failure()
+        run: |
+          mkdir -p out
+          { echo "### สาเหตุที่ เว็บ (ขั้นเตรียม/build) สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+            tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-prepare-error.md"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: out-prepare, path: out }
 
   android:
     needs: prepare
@@ -89,6 +100,7 @@ jobs:
         with: { distribution: temurin, java-version: 21 }
       - name: Build APK with Capacitor
         run: |
+          exec > >(tee -a "$RUNNER_TEMP/log.txt") 2>&1 # keep a copy for the error summary
           mkdir app && mv site/www app/www && cd app
           npm init -y >/dev/null
           npm i @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @capacitor/assets@3
@@ -136,7 +148,14 @@ jobs:
             "$AAPT" dump permissions "$APK" | grep uses-permission | sed 's/^/  - /' || true
             echo
           } > out/facts-android.md
+      - name: Error summary
+        if: failure()
+        run: |
+          mkdir -p out
+          { echo "### สาเหตุที่ Android สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+            tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-Android-error.md"
       - uses: actions/upload-artifact@v4
+        if: always()
         with: { name: out-android, path: out }
 
   native:
@@ -165,11 +184,12 @@ jobs:
         if: matrix.t != 'ios'
         env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
         run: |
+          exec > >(tee -a "$RUNNER_TEMP/log.txt") 2>&1 # keep a copy for the error summary
           mkdir out el && mv site/www el/www && cd el
           if [ "$ICON" = true ]; then mkdir build && cp ../site/icon.png build/icon.png; fi
           cat > main.js <<'JS'
           const { app, BrowserWindow, protocol, net, shell } = require('electron');
-          const path = require('path'), { pathToFileURL } = require('url');
+          const fs = require('fs'), path = require('path'), { pathToFileURL } = require('url');
           const { name, appId, bg } = require('./package.json').r2a;
           protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
           if (!app.requestSingleInstanceLock()) app.quit();
@@ -180,8 +200,10 @@ jobs:
             const root = path.join(__dirname, 'www');
             protocol.handle('app', r => {
               const p = path.normalize(decodeURIComponent(new URL(r.url).pathname));
-              const f = path.join(root, p === '/' ? 'index.html' : p);
-              return f.startsWith(root) ? net.fetch(pathToFileURL(f).toString()) : new Response('', { status: 403 });
+              let f = path.join(root, p === '/' ? 'index.html' : p);
+              if (!f.startsWith(root)) return new Response('', { status: 403 });
+              if (!path.extname(f) && !fs.existsSync(f)) f = path.join(root, 'index.html'); // SPA routes like /about
+              return net.fetch(pathToFileURL(f).toString());
             });
             win = new BrowserWindow({ width: 1100, height: 760, title: name, backgroundColor: bg, autoHideMenuBar: true });
             // links that leave the app open in the normal browser, not a bare Electron window
@@ -213,6 +235,7 @@ jobs:
       - name: iOS (unsigned .ipa + Xcode project)
         if: matrix.t == 'ios'
         run: |
+          exec > >(tee -a "$RUNNER_TEMP/log.txt") 2>&1 # keep a copy for the error summary
           N=${REPO#*/}
           mkdir out app && mv site/www app/www && cd app
           npm init -y >/dev/null
@@ -243,12 +266,19 @@ jobs:
             echo "- โปรเจกต์ Xcode: แตก zip บน Mac รัน \`npm install && npx cap sync ios\` แล้วเปิด ios/App ใน Xcode เพื่อเซ็นและอัปขึ้น App Store"
             echo
           } > ../out/facts-ios.md
+      - name: Error summary
+        if: failure()
+        run: |
+          mkdir -p out
+          { echo "### สาเหตุที่ $T สร้างไม่สำเร็จ (log 25 บรรทัดสุดท้าย)"
+            tail -n 25 "$RUNNER_TEMP/log.txt" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '`' | sed 's/^/- /'; echo; } > "out/facts-$T-error.md"
       - uses: actions/upload-artifact@v4
+        if: always()
         with: { name: "out-${{ matrix.t }}", path: out }
 
   publish:
     needs: [prepare, android, native]
-    if: always() && needs.prepare.result == 'success'
+    if: always()
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
@@ -256,6 +286,7 @@ jobs:
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with: { name: site, path: site }
       - uses: actions/download-artifact@v4
         continue-on-error: true
@@ -265,10 +296,11 @@ jobs:
           shopt -s nullglob
           bins=(out/*.apk out/*.aab out/*.exe out/*.dmg out/*.AppImage out/*.ipa out/*.zip)
           if [ ${#bins[@]} -eq 0 ]; then
-            gh release create "apk-$JOB" --title FAILED --notes "Build ล้มเหลว ดู log: $RUN_URL"; exit 0
+            { echo "ดู log เต็ม: $RUN_URL"; echo; cat out/facts-*-error.md 2>/dev/null; } > notes.md
+            gh release create "apk-$JOB" --title FAILED --notes-file notes.md; exit 0
           fi
           {
-            cat site/report.md out/facts-*.md
+            cat site/report.md out/facts-*.md 2>/dev/null
             [ "${{ needs.android.result }}" = failure ] && echo "- Android สร้างไม่สำเร็จ ดู log: $RUN_URL"
             [ "${{ needs.native.result }}" = failure ] && echo "- Windows/macOS/Linux/iOS บางตัวสร้างไม่สำเร็จ ดู log: $RUN_URL"
             true
