@@ -229,6 +229,18 @@ function finish(rel) {
   setStep(files.length ? 3 : 2); say(files.length ? L('เสร็จแล้ว', 'Done') : L('สร้างไม่สำเร็จ', 'Build failed'));
   const h = el('h3', 'stage-h', files.length ? L('ไฟล์พร้อมแล้ว', 'Your files are ready') : L('สร้างไม่สำเร็จ', 'Build failed')); box.append(h);
   if (files.length) {
+    // the name is baked into the app, so a new name means a rebuild: reuse the confirm flow with the new name
+    const form = el('form', 'rename'), inp = el('input'), lab = el('label', '', L('ชื่อแอป', 'App name'));
+    inp.id = lab.htmlFor = 'rename'; inp.maxLength = 30; inp.value = rel.name || '';
+    const go = el('button', 'btn', L('สร้างใหม่ด้วยชื่อนี้', 'Rebuild with this name')); go.type = 'submit';
+    form.append(lab, inp, go, el('p', 'help', L('ชื่อฝังอยู่ในตัวแอป การเปลี่ยนชื่อต้อง build ใหม่ (ประมาณ 3-10 นาที)', 'The name is built into the app, so changing it needs a rebuild (about 3-10 minutes)')));
+    form.onsubmit = e => {
+      e.preventDefault();
+      const n = inp.value.trim();
+      if (!n || n === rel.name) return inp.focus();
+      $('appname').value = n; box.hidden = true; $('plan').hidden = false; $('confirm').click();
+    };
+    box.append(form);
     const grid = el('div', 'downloads');
     for (const x of files) {
       const [, os, label, note] = KINDS.find(([re]) => re.test(x.name)) || [0, 'download', x.name.split('.').pop(), ['', '']];

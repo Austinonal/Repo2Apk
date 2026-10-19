@@ -87,13 +87,12 @@
           <svg class="ic lg"><use href="#i-linux"/></svg><b>Linux</b><span class="fmt">.AppImage</span><span class="desc" data-en="No install needed">ไม่ต้องติดตั้ง</span></label>
       </fieldset>
 
+      <div class="step-head"><span class="num">3</span><h2 data-en="Name">ชื่อ</h2></div>
+      <label for="appname" data-en="App name (shown under the icon)">ชื่อแอป (แสดงใต้ไอคอน)</label>
+      <input id="appname" autocomplete="off" maxlength="30" placeholder="เว้นว่าง = ใช้จาก manifest / title" data-en-placeholder="Empty = use manifest / title">
       <details class="more">
-        <summary><span data-en="More options">ตัวเลือกเพิ่มเติม</span> <span class="muted" data-en="App name · App ID · Version">ชื่อแอป · App ID · เวอร์ชัน</span></summary>
+        <summary><span data-en="More options">ตัวเลือกเพิ่มเติม</span> <span class="muted" data-en="App ID · Version">App ID · เวอร์ชัน</span></summary>
         <div class="grid2">
-          <div class="span2">
-            <label for="appname" data-en="App name">ชื่อแอป</label>
-            <input id="appname" autocomplete="off" maxlength="30" placeholder="เว้นว่าง = ใช้จาก manifest / title" data-en-placeholder="Empty = use manifest / title">
-          </div>
           <div>
             <label for="appid">App ID</label>
             <input id="appid" autocomplete="off" spellcheck="false" placeholder="com.ชื่อคุณ.แอป" data-en-placeholder="com.you.app" aria-describedby="appid-help">

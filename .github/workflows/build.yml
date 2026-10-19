@@ -303,13 +303,42 @@ jobs:
       - uses: actions/download-artifact@v4
         continue-on-error: true
         with: { pattern: 'out-*', path: out, merge-multiple: true }
+      - name: Virus scan (ClamAV) + checksums
+        timeout-minutes: 15
+        continue-on-error: true # a broken scanner must not block the release; the notes then say "not scanned"
+        run: |
+          shopt -s nullglob
+          L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
+          ALL='out/*.apk out/*.aab out/*.exe out/*.dmg out/*.AppImage out/*.ipa out/*.zip'
+          files=($ALL); [ ${#files[@]} -eq 0 ] && exit 0
+          { L "### สแกนไวรัส (ClamAV)" "### Virus scan (ClamAV)"
+            L "- ยังไม่ได้สแกน (ขั้นสแกนล้มเหลวหรือหมดเวลา)" "- Not scanned (the scan step failed or timed out)"; echo; } > out/facts-scan.md
+          sudo apt-get update -qq && sudo apt-get install -y -qq clamav >/dev/null
+          sudo systemctl stop clamav-freshclam 2>/dev/null || true
+          sudo freshclam --quiet
+          rc=0; clamscan -r --no-summary "${files[@]}" > "$RUNNER_TEMP/scan.txt" 2>&1 || rc=$?
+          hits=$(grep ' FOUND$' "$RUNNER_TEMP/scan.txt" || true)
+          { L "### สแกนไวรัส (ClamAV)" "### Virus scan (ClamAV)"
+            if [ $rc -eq 0 ]; then
+              L "- ไม่พบมัลแวร์ในไฟล์ทั้งหมด (ฐานข้อมูลลายเซ็นอัปเดตล่าสุดตอนสแกน)" "- No malware found in any file (signature database freshly updated)"
+              L "  - ผลต่อแอป: ClamAV เช็คจากลายเซ็นมัลแวร์ที่รู้จักและเปิดดูในไฟล์บีบอัดได้เท่าที่รองรับ ไม่ได้รับประกันว่าปลอดภัย 100% และไม่ใช่การเซ็นรับรองแอป โปรแกรมป้องกันไวรัสบนเครื่องคุณอาจเตือนแอปที่ยังไม่เซ็นได้" "  - Effect on the app: ClamAV matches known malware signatures and looks inside archives where it can. It is not a guarantee of safety and not code-signing, so your own antivirus may still warn about unsigned apps."
+            elif [ $rc -eq 1 ]; then
+              L "- พบสิ่งผิดปกติ จึงไม่ปล่อยไฟล์เหล่านี้ให้ดาวน์โหลด:" "- Something suspicious was found, so these files are NOT published:"
+              echo "$hits" | sed 's/^\(.*\): \(.*\) FOUND$/- `\1`: \2/'
+              for f in $(echo "$hits" | sed 's/: .* FOUND$//'); do rm -f "$f"; done
+            else
+              L "- สแกนไม่สำเร็จ (ClamAV error) ไฟล์ยังไม่ผ่านการตรวจ" "- The scan failed (ClamAV error), so the files are unchecked"
+            fi
+            L "- SHA-256 ใช้เช็คไฟล์กับ VirusTotal หรือโปรแกรมสแกนของคุณ:" "- SHA-256, to check the files on VirusTotal or in your own scanner:"
+            for f in $ALL; do echo "  - \`$(basename "$f")\`: \`$(sha256sum "$f" | cut -d' ' -f1)\`"; done
+            echo; } > out/facts-scan.md
       - name: Release
         run: |
           shopt -s nullglob
           L() { if [ "$APP_LANG" = en ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi; } # th, en
           bins=(out/*.apk out/*.aab out/*.exe out/*.dmg out/*.AppImage out/*.ipa out/*.zip)
           if [ ${#bins[@]} -eq 0 ]; then
-            { L "ดู log เต็ม: $RUN_URL" "Full log: $RUN_URL"; echo; cat out/facts-*-error.md 2>/dev/null; } > notes.md
+            { L "ดู log เต็ม: $RUN_URL" "Full log: $RUN_URL"; echo; cat out/facts-*-error.md out/facts-scan.md 2>/dev/null; } > notes.md
             gh release create "apk-$JOB" --title FAILED --notes-file notes.md; exit 0
           fi
           {
