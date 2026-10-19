@@ -315,3 +315,9 @@ dialog[open] { animation: pop var(--dur) var(--ease-out); }
 .report .score ul { border: 0; border-radius: 0; background: none; overflow: visible; }
 .report .score li { padding: 0; border: 0; }
 .report .score li::before { display: none; }
+
+/* ---------- rename before download ---------- */
+.rename { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; margin: var(--space-4) 0 var(--space-5); padding: var(--space-4);
+  border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface-2); }
+.rename label, .rename .help { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 480px) { .rename { grid-template-columns: 1fr; } }
